@@ -4,25 +4,18 @@
     "metric": {"goal": "minimize", "name": "cum_regret"},
     "parameters": 
     {
-        "project_name": {"value": "linear_thomson_100__fix_arms"},
+        "project_name": {"value": "aistat_linear"},
         "d": {"value": 20},
         "T": {"value": 5000},
-        "nb_arms": {"value": 100},
-        "fixed_context": {"value": true},
-        "agent": {"value": "lmcts"},
+        "nb_arms": {"value": 20},
+        "agent": {"value": "ts"},
         "std_reward": {"value": 1},
         "env": {"value": "linear"},
-        "data_key": {"value": 1},
         "ctx_dim": {"value": 20},
-        "eta": {"values": [100,500]} ,
-        "lambda": {"values": [1]},
-        "layers": {"value": [1]}, 
-        "num_updates": {"values": [10]},
-        "step_size": {"values": [0.001]} ,
-        "agent_key": {"values": [20]},
-        "theta_key" : {"values": [10]},
-        "mc_samples" :{"value": 1},
-        "approx" : {"value": true} ,
-        "good_conditionning" :{"value": true}
+        "eta": {"values": [1, 10, 100]} ,
+        "lambda": {"values": [0.1, 1, 10]},
+        "data_key": {"value": 1},
+        "agent_key": {"values": [10]},
+        "theta_key" : {"values": [20]}
     }
 }

@@ -1,16 +1,16 @@
 #!/bin/bash
-
-#SBATCH --job-name=vts
-#SBATCH --nodes=1
-#SBATCH --gres=gpu:1
-#SBATCH --partition=gpu
-#SBATCH --time=04:00:00
-#SBATCH --mem=64G
+#SBATCH --job-name=reb
+#SBATCH --nodes=1       
+#SBATCH --gres=gpu:4
+#SBATCH --time=02:00:00
+#SBATCH --cpus-per-task=11
 #SBATCH --output=output.txt
 #SBATCH --error=error.txt
+#SBATCH -A nek@v100
+#SBATCH --array=0-0
+module load python/3.10.4
+export PATH="/linkhome/rech/genuey01/ujz54ib/.local/bin:$PATH"
+export TMP=$SCRATCH
+nvidia-smi
 
-
-module purge
-module load anaconda3/2022.10/gcc-11.2.0
-source activate myenv
-srun python3 main.py  --param_file ./parameters/test_linear/rvits.json
+srun python3 main.py  --param_file ./parameters/linear/ts.json                                                                                 

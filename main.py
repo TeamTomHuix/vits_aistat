@@ -4,9 +4,9 @@ import jax
 import json
 import wandb
 jax.config.update("jax_debug_nans", True)
-jax.config.update("jax_disable_jit", True)
-import os 
-os.environ["WANDB_SILENT"] = "false"
+jax.config.update("jax_disable_jit", False)
+os.environ["WANDB_MODE"] = "offline"
+import os
 parser = argparse.ArgumentParser()
 parser.add_argument("--param_file")
 parser.add_argument("--eta")
