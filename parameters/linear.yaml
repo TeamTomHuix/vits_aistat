@@ -1,0 +1,19 @@
+key:
+  theta: 0
+  data: 0
+  agent: 0
+
+
+env: 'linear'
+agent_name: ?
+T: 5000
+lbd: ???
+ctx_dim: 50
+eta: ???
+
+model:
+  layers: [1]
+  logistic_activation: false
+
+
+
