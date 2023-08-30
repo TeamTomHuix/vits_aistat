@@ -8,7 +8,7 @@ class LinUCB(object):
 
     def choice_fct(self, key, context, utils_vector):
         bt, cov = utils_vector
-        norm = jnp.sqrt((1 / self.info.ucb.eta) * jnp.einsum("id,dv,iv->i", context, cov, context))
+        norm = jnp.sqrt((1 / self.info.eta) * jnp.einsum("id,dv,iv->i", context, cov, context))
         data_term = jnp.matmul(context, jnp.matmul(cov, bt)).squeeze()
         p = data_term + norm
         return key, (bt, cov), p.argmax()

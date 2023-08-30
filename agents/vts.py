@@ -56,7 +56,7 @@ class VTS(object):
             b_new = b0 + 0.5 * (jnp.matmul(jnp.matmul(labels, R), labels)) + 0.5 * (jnp.matmul(jnp.matmul(t0, s_inv0), t0) - jnp.matmul(jnp.matmul(t_new, s_inv_new), t_new))
             return a_new, b_new, g_new, t_new, s_new, s_inv_new
 
-        gamma_sum = jnp.sum(gamma, axis=1, keepdims=True).repeat(self.info['nb_mixtures'], axis=1)
+        gamma_sum = jnp.sum(gamma, axis=1, keepdims=True).repeat(self.info.vts.nb_mixtures, axis=1)
         r = jax.vmap(jax.vmap(get_r))(alpha, beta, gamma, gamma_sum, theta, Sigma)
 
         r /= jnp.sum(r, axis=1, keepdims=True)

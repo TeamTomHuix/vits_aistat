@@ -16,5 +16,22 @@ model:
   layers: [1]
   logistic_activation: false
 
+lmcts:
+  num_updates: 100
+
+vits:
+  hessian_free: true
+  approx: true
+  step_size: 0.001
+
+vts:
+  num_updates: 10
+  alpha_0: 1
+  beta_0: 1
+  gamma_0: 1
+  sigma_0: 1
+  theta_0: 1
+  nb_mixtures: 1
+
 
 
