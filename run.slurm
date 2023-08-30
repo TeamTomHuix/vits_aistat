@@ -13,4 +13,4 @@ export PATH="/linkhome/rech/genuey01/ujz54ib/.local/bin:$PATH"
 export TMP=$SCRATCH
 nvidia-smi
 
-srun python3 run_linear -m eta=0.1,0.5,1,5 lbd=0.01,0.1,1                                                                               
+srun python3 run_linear.py -m eta=0.1,0.5,1,5 lbd=0.01,0.1,1                                                                               
