@@ -11,6 +11,7 @@ lbd: ???
 ctx_dim: 10
 eta: ???
 d: 10
+nb_arms: 10
 
 model:
   layers: [1]
