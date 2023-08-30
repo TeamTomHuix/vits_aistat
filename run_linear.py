@@ -6,7 +6,6 @@ import wandb
 import os
 import hydra
 from omegaconf import DictConfig
-from gym_examples.envs.run import Trainer
 
 jax.config.update("jax_debug_nans", True)
 jax.config.update("jax_disable_jit", False)
