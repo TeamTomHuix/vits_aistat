@@ -36,7 +36,7 @@ class Game(object):
         }
         self.info = info
         self.theta_key = jax.random.PRNGKey(self.info.key.theta)
-        self.agent_key = jax.random.PRNGKey(self.info.key.agentagent)
+        self.agent_key = jax.random.PRNGKey(self.info.key.agent.agent)
         self.data_key = jax.random.PRNGKey(self.info.key.data)
         self.init_agent()
         self.init_env()
