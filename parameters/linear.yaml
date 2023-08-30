@@ -8,8 +8,9 @@ env: 'linear'
 agent_name: ???
 T: 5000
 lbd: ???
-ctx_dim: 50
+ctx_dim: 10
 eta: ???
+d: 10
 
 model:
   layers: [1]
