@@ -10,8 +10,7 @@ class LinTS(object):
         bt, cov = utils_vector
         key, subkey = jax.random.split(key)
         mean = cov @ bt
-        
-        theta = jax.random.multivariate_normal(subkey, mean.squeeze(), cov / self.info["eta"])
+        theta = jax.random.multivariate_normal(subkey, mean.squeeze(), cov / self.info.eta)
         rewards = context.squeeze() @ theta.squeeze()
         return key, (bt, cov), rewards.argmax()
 

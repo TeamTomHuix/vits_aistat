@@ -35,18 +35,15 @@ class Game(object):
             "yahoo": YahooEnv,
         }
         self.info = info
-        self.theta_key = jax.random.PRNGKey(self.info["theta_key"])
-        self.agent_key = jax.random.PRNGKey(self.info["agent_key"])
-        self.data_key = jax.random.PRNGKey(self.info["data_key"])
+        self.theta_key = jax.random.PRNGKey(self.info.key.theta)
+        self.agent_key = jax.random.PRNGKey(self.info.key.agentagent)
+        self.data_key = jax.random.PRNGKey(self.info.key.data)
         self.init_agent()
         self.init_env()
 
-    def load_hyperparameters(self, param_file):
-        return json.load(open(param_file))
-
     def run_toy(self):
-        cum_regret = jnp.zeros(self.info["T"])
-        for idx in range(self.info["T"]):
+        cum_regret = jnp.zeros(self.info.T)
+        for idx in range(self.info.T):
             context = self.context_fct(idx)
             self.agent_key, utils_vector, action = self.choice_fct(self.agent_key, context, self.utils_object.get())
             self.utils_object.set(utils_vector) 
@@ -64,7 +61,7 @@ class Game(object):
 
     def run_yahoo(self):
         G_learn, T_learn = 0, 0 
-        for idx in range(self.info["T"]):
+        for idx in range(self.info.T):
             displayed_arm, context = self.context_fct(idx)
             self.agent_key, utils_vector, action = self.choice_fct(self.agent_key, context, self.utils_object.get())
             self.utils_object.set(utils_vector)
@@ -81,15 +78,14 @@ class Game(object):
         return G_learn / T_learn
 
     def init_agent(self):
-        agent_name = self.info["agent"]
         self.agent_key, key_utils = jax.random.split(self.agent_key)
         self.utils_object = UtilsVector(self.info, key_utils)
-        agent = self.agent_dict[agent_name](self.utils_object.info, self.utils_object)
+        agent = self.agent_dict[self.info.agent_name](self.utils_object.info, self.utils_object)
         self.choice_fct = jax.jit(agent.choice_fct)
         self.update_fct = jax.jit(agent.update_fct)
 
     def init_env(self):
         self.data_key, data_key_temp = jax.random.split(self.data_key)
-        self.environment = self.env_dict[self.info["env"]](self.info, self.theta_key, data_key_temp)
+        self.environment = self.env_dict[self.info.env](self.info, self.theta_key, data_key_temp)
         self.context_fct = jax.jit(self.environment.context_fct)
         self.reward_fct = jax.jit(self.environment.reward_fct)

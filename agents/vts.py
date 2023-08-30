@@ -1,7 +1,5 @@
 import jax
 import jax.numpy as jnp
-from time import time
-
 
 class VTS(object):
     def __init__(self, info, utils_object):
@@ -24,9 +22,9 @@ class VTS(object):
             return jax.random.multivariate_normal(subkey, theta, covariance_matrix)
 
         key, sigma_sample = sample_inverse_gamma(key, alpha, beta)
-        cov = jnp.multiply(sigma_sample.reshape((self.info["nb_arms"], self.info["nb_mixtures"], 1, 1)), Sigma)
+        cov = jnp.multiply(sigma_sample.reshape((self.info.nb_arms, self.info.vts.nb_mixtures, 1, 1)), Sigma)
         key, subkey = jax.random.split(key)
-        keys = jax.random.split(subkey, self.info["nb_arms"] * self.info["nb_mixtures"]).reshape((self.info["nb_arms"], self.info["nb_mixtures"], -1))
+        keys = jax.random.split(subkey, self.info.nb_arms * self.info.vts.nb_mixtures).reshape((self.info.nb_arms, self.info.vts.nb_mixtures, -1))
         sample = jax.vmap(jax.vmap(sample_multivariate_gaussian, in_axes=((0, 0, 0),)),in_axes=((0, 0, 0),))((theta, cov, keys))
         return key, sample
 
@@ -62,7 +60,7 @@ class VTS(object):
         r = jax.vmap(jax.vmap(get_r))(alpha, beta, gamma, gamma_sum, theta, Sigma)
 
         r /= jnp.sum(r, axis=1, keepdims=True)
-        chosen_action = actions == jnp.tile(jnp.expand_dims(jnp.arange(self.info['nb_arms']), axis=(1, 2)), (1, self.info['nb_mixtures'], actions.shape[0]))
+        chosen_action = actions == jnp.tile(jnp.expand_dims(jnp.arange(self.info.nb_arms), axis=(1, 2)), (1, self.info.vts.nb_mixtures, actions.shape[0]))
         alpha, beta, gamma, theta, Sigma, Sigma_inv = jax.vmap(jax.vmap(update_parameters))(r,
                                                                                             self.alpha_0,
                                                                                             self.beta_0,
@@ -82,7 +80,7 @@ class VTS(object):
 
         (alpha, beta, gamma, theta, Sigma, Sigma_inv) =jax.lax.fori_loop(
              0,
-             self.info["num_updates"],
+             self.info.vts.num_updates,
              lambda i, x: self.update_law(i, features, actions, labels, *x),
         (alpha, beta, gamma, theta, Sigma, Sigma_inv))
 

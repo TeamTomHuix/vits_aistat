@@ -17,17 +17,17 @@ class LinearDataset(object):
         self.contexts, self.mean, self.noise = self.generate_data(data_key)
 
     def init_theta_star(self, theta_key):
-        theta = jax.random.normal(theta_key, shape=(self.info["ctx_dim"], 1))
+        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
         theta /= jnp.linalg.norm(theta, ord=2)
         return theta
 
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
-        contexts = jax.random.normal(subkey, shape=(self.info['T'], self.info['nb_arms'], self.info['ctx_dim']))
+        contexts = jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
         contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
-        noise = self.info["std_reward"] * jax.random.normal(subkey, shape=(self.info["T"],))
+        noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
         return contexts, mean, noise
 
     def reward_fct(self, idx, data_key, action):
@@ -47,14 +47,14 @@ class LinearIllDataset(object):
     
     def modified_theta(self, key):
         key, subkey = jax.random.split(key)
-        noise = 0.1 * jax.random.normal(subkey, shape=(1, self.info['ctx_dim']))
+        noise = 0.1 * jax.random.normal(subkey, shape=(1, self.info.ctx_dim))
         theta_modif = self.theta.T + noise
         theta_modif /= jnp.linalg.norm(theta_modif, axis=1, keepdims=True, ord=2)
         return key, theta_modif
     
     def generate_others(self, key):
         key, subkey = jax.random.split(key)
-        x_others = jax.random.normal(subkey, shape=(self.info['nb_arms'] - 2, self.info['ctx_dim'],))
+        x_others = jax.random.normal(subkey, shape=(self.info.nb_arms - 2, self.info.ctx_dim,))
         x_others /= jnp.linalg.norm(x_others, axis=1, ord=2, keepdims=True)
         return key, x_others
 
@@ -66,11 +66,11 @@ class LinearIllDataset(object):
         contexts = jnp.concatenate((self.theta.T[None, :, :], theta_modified[None, :, :], x_others), axis=0)
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
-        noise = self.info["std_reward"] * jax.random.normal(subkey, shape=(self.info["T"],))
+        noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
         return contexts, mean, noise
 
     def init_theta_star(self, theta_key):
-        theta = jax.random.normal(theta_key, shape=(self.info["ctx_dim"], 1))
+        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
         theta /= jnp.linalg.norm(theta, ord=2)
         return theta
 
@@ -91,13 +91,13 @@ class LogisticDataset(object):
         self.features, self.mean = self.generate_data(data_key)
 
     def generate_data(self, data_key):
-        contexts = jax.random.normal(data_key, shape=(self.info["T"], self.info['nb_arms'], self.info["ctx_dim"]))
+        contexts = jax.random.normal(data_key, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
         contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
         mean = (contexts @ self.theta).squeeze()
         return contexts, mean
 
     def init_theta_star(self, theta_key):
-        theta = jax.random.normal(theta_key, shape=(self.info["ctx_dim"], 1))
+        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
         theta /= jnp.linalg.norm(theta, ord=2)
         return theta
 
@@ -120,14 +120,14 @@ class LogisticIllDataset(object):
     
     def modify_theta(self, key):
         key, subkey = jax.random.split(key)
-        noise = 0.1 * jax.random.normal(subkey, shape=(1, self.info['ctx_dim']))
+        noise = 0.1 * jax.random.normal(subkey, shape=(1, self.info.ctx_dim))
         theta_modif = self.theta.T + noise
         theta_modif /= jnp.linalg.norm(theta_modif, axis=1, keepdims=True, ord=2)
         return key, theta_modif
     
     def generate_others(self, key):
         key, subkey = jax.random.split(key)
-        x_others = jax.random.normal(subkey, shape=(self.info['T'], self.info['nb_arms'] - 2, self.info['ctx_dim'],))
+        x_others = jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms - 2, self.info.ctx_dim,))
         x_others /= jnp.linalg.norm(x_others, axis=2, ord=2, keepdims=True)
         return key, x_others
 
@@ -139,11 +139,11 @@ class LogisticIllDataset(object):
         contexts = jnp.concatenate((self.theta.T[None, :, :], theta_modified[None, :, :], x_others), axis=0)
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
-        noise = self.info["std_reward"] * jax.random.normal(subkey, shape=(self.info["T"],))
+        noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
         return contexts, mean, noise
 
     def init_theta_star(self, theta_key):
-        theta = jax.random.normal(theta_key, shape=(self.info["ctx_dim"], 1))
+        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
         theta /= jnp.linalg.norm(theta, ord=2)
         return theta
 
