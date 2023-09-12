@@ -2,7 +2,7 @@
 #SBATCH --job-name=reb
 #SBATCH --nodes=1       
 #SBATCH --gres=gpu:4
-#SBATCH --time=02:00:00
+#SBATCH --time=00:05:00
 #SBATCH --cpus-per-task=11
 #SBATCH --output=output.txt
 #SBATCH --error=error.txt
