@@ -81,7 +81,7 @@ class LinearIllDataset(object):
         return data_key, reward, expected_reward, best_expected_reward
 
     def context_fct(self, idx):
-        return self.contexts[idx, :, :]
+        return self.contexts
     
 
 class LogisticDataset(object):
