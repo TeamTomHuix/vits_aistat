@@ -75,9 +75,9 @@ class LinearIllDataset(object):
         return theta
 
     def reward_fct(self, idx, data_key, action):
-        reward = self.mean[idx, action] + self.noise[idx]
-        expected_reward = self.mean[idx, action].squeeze()
-        best_expected_reward = jnp.max(self.mean[idx, :])
+        reward = self.mean[action] + self.noise[idx]
+        expected_reward = self.mean[action].squeeze()
+        best_expected_reward = jnp.max(self.mean)
         return data_key, reward, expected_reward, best_expected_reward
 
     def context_fct(self, idx):
