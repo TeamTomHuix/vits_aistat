@@ -45,7 +45,7 @@ class LinearIllDataset(object):
         self.theta = self.init_theta_star(theta_key)
         self.contexts, self.mean, self.noise = self.generate_data(data_key)
     
-    def modified_theta(self, key):
+    def modify_theta(self, key):
         key, subkey = jax.random.split(key)
         noise = 0.1 * jax.random.normal(subkey, shape=(1, self.info.ctx_dim))
         theta_modif = self.theta.T + noise
