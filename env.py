@@ -63,7 +63,7 @@ class LinearIllDataset(object):
         subkey, theta_modified = self.modify_theta(subkey)
         key, subkey = jax.random.split(subkey)
         subkey, x_others = self.generate_others(subkey)
-        contexts = jnp.concatenate((self.theta.T[None, :, :], theta_modified[None, :, :], x_others), axis=0)
+        contexts = jnp.concatenate((self.theta.T, theta_modified, x_others), axis=0)
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
         noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
