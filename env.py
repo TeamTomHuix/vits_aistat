@@ -52,12 +52,12 @@ class LinearIllDataset(object):
 
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
-        z = jnp.random.binomial(subkey, 1, 0.5, size=(self.info.T))
+        z = jax.random.binomial(subkey, 1, 0.5, size=(self.info.T))
         key, subkey = jax.random.split(key)
-        eps = jnp.random.normal(subkey, 0, self.info.context_noise, size=(self.info.T, self.info.ctx_dim))
+        eps = jax.random.normal(subkey, 0, self.info.context_noise, size=(self.info.T, self.info.ctx_dim))
         key, subkey = jax.random.split(key)
-        x1 = eps / jnp.linalg.norm(eps, ord=2, axis=1, keepdims=True)
-        x2 = (self.theta + eps) / jnp.linalg.norm(self.theta + eps, ord=2, axis=1, keepdims=True)
+        x1 = eps / jax.linalg.norm(eps, ord=2, axis=1, keepdims=True)
+        x2 = (self.theta + eps) / jax.linalg.norm(self.theta + eps, ord=2, axis=1, keepdims=True)
         contexts = z[:, None] * x1 + (1 - z[:, None]) * x2
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
