@@ -52,9 +52,9 @@ class LinearIllDataset(object):
 
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
-        z = jax.random.bernoulli(subkey, 0.5, size=(self.info.T))
+        z = jax.random.bernoulli(subkey, 0.5, shape=(self.info.T))
         key, subkey = jax.random.split(key)
-        eps = jax.random.normal(subkey, 0, self.info.context_noise, size=(self.info.T, self.info.ctx_dim))
+        eps = self.info.context_noise * jax.random.normal(subkey, shape=(self.info.T, self.info.ctx_dim))
         key, subkey = jax.random.split(key)
         x1 = eps / jax.linalg.norm(eps, ord=2, axis=1, keepdims=True)
         x2 = (self.theta + eps) / jax.linalg.norm(self.theta + eps, ord=2, axis=1, keepdims=True)
