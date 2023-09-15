@@ -44,44 +44,78 @@ class LinearIllDataset(object):
         self.info = info
         self.theta = self.init_theta_star(theta_key)
         self.contexts, self.mean, self.noise = self.generate_data(data_key)
-    
-    def modify_theta(self, key):
-        key, subkey = jax.random.split(key)
-        noise = 0.1 * jax.random.normal(subkey, shape=(1, self.info.ctx_dim))
-        theta_modif = self.theta.T + noise
-        theta_modif /= jnp.linalg.norm(theta_modif, axis=1, keepdims=True, ord=2)
-        return key, theta_modif
-    
-    def generate_others(self, key):
-        key, subkey = jax.random.split(key)
-        x_others = jax.random.normal(subkey, shape=(self.info.nb_arms - 2, self.info.ctx_dim,))
-        x_others /= jnp.linalg.norm(x_others, axis=1, ord=2, keepdims=True)
-        return key, x_others
-
-    def generate_data(self, data_key):
-        key, subkey = jax.random.split(data_key)
-        subkey, theta_modified = self.modify_theta(subkey)
-        key, subkey = jax.random.split(subkey)
-        subkey, x_others = self.generate_others(subkey)
-        contexts = jnp.concatenate((self.theta.T, theta_modified, x_others), axis=0)
-        mean = (contexts @ self.theta).squeeze()
-        key, subkey = jax.random.split(key)
-        noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
-        return contexts, mean, noise
 
     def init_theta_star(self, theta_key):
         theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
         theta /= jnp.linalg.norm(theta, ord=2)
         return theta
 
+    def generate_data(self, data_key):
+        key, subkey = jax.random.split(data_key)
+        z = jnp.random.binomial(subkey, 1, 0.5, size=(self.info.T))
+        key, subkey = jax.random.split(key)
+        eps = jnp.random.normal(subkey, 0, self.info.context_noise, size=(self.info.T, self.info.ctx_dim))
+        key, subkey = jax.random.split(key)
+        x1 = eps / jnp.linalg.norm(eps, ord=2, axis=1, keepdims=True)
+        x2 = (self.theta + eps) / jnp.linalg.norm(self.theta + eps, ord=2, axis=1, keepdims=True)
+        contexts = z[:, None] * x1 + (1 - z[:, None]) * x2
+        mean = (contexts @ self.theta).squeeze()
+        key, subkey = jax.random.split(key)
+        noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
+        return contexts, mean, noise
+
     def reward_fct(self, idx, data_key, action):
-        reward = self.mean[action] + self.noise[idx]
-        expected_reward = self.mean[action].squeeze()
-        best_expected_reward = jnp.max(self.mean)
+        reward = self.mean[idx, action] + self.noise[idx]
+        expected_reward = self.mean[idx, action].squeeze()
+        best_expected_reward = jnp.max(self.mean[idx, :])
         return data_key, reward, expected_reward, best_expected_reward
 
     def context_fct(self, idx):
-        return self.contexts
+        return self.contexts[idx, :, :]
+
+#class LinearIllDataset(object):
+#    def __init__(self, info, theta_key, data_key):
+#        self.info = info
+#        self.theta = self.init_theta_star(theta_key)
+#        self.contexts, self.mean, self.noise = self.generate_data(data_key)
+    
+#    def modify_theta(self, key):
+#        key, subkey = jax.random.split(key)
+#        noise = 0.1 * jax.random.normal(subkey, shape=(1, self.info.ctx_dim))
+#        theta_modif = self.theta.T + noise
+#        theta_modif /= jnp.linalg.norm(theta_modif, axis=1, keepdims=True, ord=2)
+#        return key, theta_modif
+    
+#    def generate_others(self, key):
+#        key, subkey = jax.random.split(key)
+#        x_others = jax.random.normal(subkey, shape=(self.info.nb_arms - 2, self.info.ctx_dim,))
+#        x_others /= jnp.linalg.norm(x_others, axis=1, ord=2, keepdims=True)
+#        return key, x_others
+
+#    def generate_data(self, data_key):
+#       key, subkey = jax.random.split(data_key)
+#        subkey, theta_modified = self.modify_theta(subkey)
+#        key, subkey = jax.random.split(subkey)
+#        subkey, x_others = self.generate_others(subkey)
+#        contexts = jnp.concatenate((self.theta.T, theta_modified, x_others), axis=0)
+#        mean = (contexts @ self.theta).squeeze()
+#        key, subkey = jax.random.split(key)
+#        noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
+#        return contexts, mean, noise
+
+#    def init_theta_star(self, theta_key):
+#        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
+#        theta /= jnp.linalg.norm(theta, ord=2)
+#        return theta
+
+#    def reward_fct(self, idx, data_key, action):
+#        reward = self.mean[action] + self.noise[idx]
+#        expected_reward = self.mean[action].squeeze()
+#        best_expected_reward = jnp.max(self.mean)
+#        return data_key, reward, expected_reward, best_expected_reward
+
+#    def context_fct(self, idx):
+#        return self.contexts
     
 
 class LogisticDataset(object):
