@@ -85,7 +85,7 @@ class Game(object):
         agent = self.agent_dict[self.info.agent_name](self.utils_object.info, self.utils_object)
         self.choice_fct = jax.jit(agent.choice_fct)
         self.update_fct = jax.jit(agent.update_fct)
-        self.compute_cond_number = jax.jit(self.environment.compute_cond_number)
+        self.compute_cond_number = jax.jit(agent.compute_cond_number)
 
     def init_env(self):
         self.data_key, data_key_temp = jax.random.split(self.data_key)
