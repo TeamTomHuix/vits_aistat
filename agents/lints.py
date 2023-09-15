@@ -13,6 +13,10 @@ class LinTS(object):
         theta = jax.random.multivariate_normal(subkey, mean.squeeze(), cov / self.info.eta)
         rewards = context.squeeze() @ theta.squeeze()
         return key, (bt, cov), rewards.argmax()
+    
+    def get_condition_number(self, utils_vector):
+        _, cov = utils_vector
+        return jnp.linalg.cond(jnp.linalg.inv(cov))
 
     def update_fct(self, key, context, action, reward, utils_vector):
         bt, cov = utils_vector

@@ -12,6 +12,10 @@ class LinUCB(object):
         data_term = jnp.matmul(context, jnp.matmul(cov, bt)).squeeze()
         p = data_term + norm
         return key, (bt, cov), p.argmax()
+    
+    def get_condition_number(self, utils_vector):
+        _, cov = utils_vector
+        return jnp.linalg.cond(jnp.linalg.inv(cov))
 
     def update_fct(self, key, context, action, reward, utils_vector):
         bt, cov = utils_vector

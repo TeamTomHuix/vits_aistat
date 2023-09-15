@@ -33,14 +33,14 @@ class UtilsVector(object):
         self.agent_key = agent_key
         self.info = info
         self.utils_vector= {
-            "lmcts": self.init_LMC(),
-            "ts": self.init_LinTS_LinUCB(),
-            "ucb": self.init_LinTS_LinUCB(),
-            "vits": self.init_VITS(),
-            "rvits": self.init_RVITS(),
-            "vts": self.init_VTS(),
+            "lmcts": self.init_LMC,
+            "ts": self.init_LinTS_LinUCB,
+            "ucb": self.init_LinTS_LinUCB,
+            "vits": self.init_VITS,
+            "rvits": self.init_RVITS,
+            "vts": self.init_VTS,
             "random": None
-        }[self.info.agent_name]
+        }[self.info.agent_name]()
 
     def slice_vector(self, vector_old, idx, vector_new):
         in_shape = list(vector_old.shape)

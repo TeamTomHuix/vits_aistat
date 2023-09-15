@@ -51,11 +51,13 @@ class Game(object):
             self.agent_key, utils_vector = self.update_fct(self.agent_key, context, action, reward, self.utils_object.get(idx + 1))
             self.utils_object.set(utils_vector, idx + 1)
             cum_regret = cum_regret.at[idx + 1].set(cum_regret[idx] + best_expected_reward - expected_reward)
+            condition_number = self.agent.compute_cond_number(self.utils_object.get(idx+1))
             wandb.log({"cum_regret": jax.device_get(cum_regret[idx]),
                     "action": jax.device_get(action),
                     "reward": jax.device_get(reward),
                     "is_arm_0": 1 if action == 0 else 0,
-                    "is_arm_1": 1 if action == 1 else 0})
+                    "is_arm_1": 1 if action == 1 else 0,
+                    "condition_number": jax.device_get(condition_number)})
         wandb.finish()
         return cum_regret
 
