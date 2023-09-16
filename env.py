@@ -52,13 +52,15 @@ class LinearIllDataset(object):
 
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
-        z = jax.random.bernoulli(subkey, 0.5, shape=(self.info.T, self.info.nb_arms))
+        z = jax.random.bernoulli(subkey, 0.5, shape=(self.info.T, self.info.nb_arms - 1))
         key, subkey = jax.random.split(key)
-        eps = self.info.context_noise * jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
+        eps = self.info.context_noise * jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms - 1, self.info.ctx_dim))
         key, subkey = jax.random.split(key)
         x1 = eps / jnp.linalg.norm(eps, ord=2, axis=2, keepdims=True)
         x2 = (self.theta.T[None, :, :] + eps) / jnp.linalg.norm(self.theta.T[None, :, :] + eps, ord=2, axis=2, keepdims=True)
         contexts = z[:, :, None] * x1 + (1 - z[:, :, None]) * x2
+        contexts = jnp.concatenate((self.theta.T[None, :, :], contexts), axis=1)
+        raise ValueError(contexts)
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
         noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
