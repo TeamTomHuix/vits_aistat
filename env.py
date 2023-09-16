@@ -52,13 +52,13 @@ class LinearIllDataset(object):
 
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
-        z = jax.random.bernoulli(subkey, 0.5, shape=(self.info.T,))
+        z = jax.random.bernoulli(subkey, 0.5, shape=(self.info.T, self.info.nb_arms))
         key, subkey = jax.random.split(key)
-        eps = self.info.context_noise * jax.random.normal(subkey, shape=(self.info.T, self.info.ctx_dim))
+        eps = self.info.context_noise * jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
         key, subkey = jax.random.split(key)
-        x1 = eps / jnp.linalg.norm(eps, ord=2, axis=1, keepdims=True)
-        x2 = (self.theta.T + eps) / jnp.linalg.norm(self.theta.T + eps, ord=2, axis=1, keepdims=True)
-        contexts = z[:, None] * x1 + (1 - z[:, None]) * x2
+        x1 = eps / jnp.linalg.norm(eps, ord=2, axis=2, keepdims=True)
+        x2 = (self.theta.T[None, :, :] + eps) / jnp.linalg.norm(self.theta.T[None, :, :] + eps, ord=2, axis=2, keepdims=True)
+        contexts = z[:, :, None] * x1 + (1 - z[:, :, None]) * x2
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
         noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
@@ -71,7 +71,7 @@ class LinearIllDataset(object):
         return data_key, reward, expected_reward, best_expected_reward
 
     def context_fct(self, idx):
-        return self.contexts[idx, :]
+        return self.contexts[idx, :, :]
 
 #class LinearIllDataset(object):
 #    def __init__(self, info, theta_key, data_key):
