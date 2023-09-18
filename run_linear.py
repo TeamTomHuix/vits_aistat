@@ -9,11 +9,11 @@ from omegaconf import DictConfig
 
 jax.config.update("jax_debug_nans", True)
 jax.config.update("jax_disable_jit", False)
-os.environ["WANDB_MODE"] = "offline"
+#os.environ["WANDB_MODE"] = "offline"
 
 @hydra.main(config_path="parameters", config_name="linear")
 def main(args: DictConfig):
-    wandb.init(config=dict(args))
+    wandb.init(config=dict(args), project=f"{args.env}_{args.agent_name}")
     game = Game(args)
     game.run_toy()
 

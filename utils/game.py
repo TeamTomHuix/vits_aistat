@@ -51,11 +51,13 @@ class Game(object):
             self.agent_key, utils_vector = self.update_fct(self.agent_key, context, action, reward, self.utils_object.get(idx + 1))
             self.utils_object.set(utils_vector, idx + 1)
             cum_regret = cum_regret.at[idx + 1].set(cum_regret[idx] + best_expected_reward - expected_reward)
+            condition_number = self.compute_cond_number(self.utils_object.get(idx+1))
             wandb.log({"cum_regret": jax.device_get(cum_regret[idx]),
                     "action": jax.device_get(action),
                     "reward": jax.device_get(reward),
                     "is_arm_0": 1 if action == 0 else 0,
-                    "is_arm_1": 1 if action == 1 else 0})
+                    "is_arm_1": 1 if action == 1 else 0,
+                    "condition_number": jax.device_get(condition_number)})
         wandb.finish()
         return cum_regret
 
@@ -83,9 +85,11 @@ class Game(object):
         agent = self.agent_dict[self.info.agent_name](self.utils_object.info, self.utils_object)
         self.choice_fct = jax.jit(agent.choice_fct)
         self.update_fct = jax.jit(agent.update_fct)
+        self.compute_cond_number = jax.jit(agent.compute_cond_number)
 
     def init_env(self):
         self.data_key, data_key_temp = jax.random.split(self.data_key)
         self.environment = self.env_dict[self.info.env](self.info, self.theta_key, data_key_temp)
         self.context_fct = jax.jit(self.environment.context_fct)
         self.reward_fct = jax.jit(self.environment.reward_fct)
+        

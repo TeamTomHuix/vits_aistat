@@ -95,3 +95,11 @@ class VITS(object):
             lambda i, v: self.update_law(i, features, labels, *v),
             (key, mean, cov_semi, cov_semi_inv))
         return key, (features, labels, mean, cov_semi, cov_semi_inv)
+    
+    def compute_cond_number(self, key, utils_vector):
+        features, labels, mean, cov_semi, _ = utils_vector
+        subkey, theta = self.sample(key, mean, cov_semi)
+        regularization_hessian = 2 * self.info.lbd * jnp.eye(self.utils_object.dimension)
+        data_hessian = jnp.sum(jax.vmap(self.hessian_function, in_axes=(None, 0, 0))(theta, features, labels), axis=0)
+        hessian = self.info.eta *  (regularization_hessian + data_hessian)
+        return subkey, jnp.linalg.cond(hessian)

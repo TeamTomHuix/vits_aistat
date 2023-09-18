@@ -13,6 +13,7 @@ eta: ???
 d: 10
 nb_arms: 10
 std_reward: 0.1
+context_noise: 0.1
 
 model:
   layers: [1]
