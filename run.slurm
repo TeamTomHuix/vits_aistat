@@ -1,11 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=reb
+#SBATCH --job-name=ill
 ##SBATCH --nodes=1       
-#SBATCH --partition=prepost
 #SBATCH --time=02:00:00
 #SBATCH --output=output.txt
 #SBATCH --error=error.txt
-#SBATCH -A nek@v100
+#SBATCH --gres=gpu:1
+#SBATCH -A nek@a100
+#SBATCH -C a100
 #SBATCH --array=0-19
 
 module load python/3.10.4
