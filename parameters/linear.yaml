@@ -4,7 +4,7 @@ key:
   agent: 0
 
 
-env: 'linear'
+env: 'linearill'
 agent_name: ???
 T: 5000
 lbd: ???
@@ -20,12 +20,14 @@ model:
   logistic_activation: false
 
 lmcts:
-  num_updates: 100
+  num_updates: 50
+  step_size: 0.01
 
 vits:
-  hessian_free: true
-  approx: true
+  hessian_free: false
+  approx: false
   step_size: 0.001
+  num_updates: 10
 
 vts:
   num_updates: 10

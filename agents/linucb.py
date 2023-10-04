@@ -13,7 +13,7 @@ class LinUCB(object):
         p = data_term + norm
         return key, (bt, cov), p.argmax()
     
-    def get_condition_number(self, utils_vector):
+    def compute_cond_number(self, utils_vector):
         _, cov = utils_vector
         return jnp.linalg.cond(jnp.linalg.inv(cov))
 

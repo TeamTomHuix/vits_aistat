@@ -45,7 +45,7 @@ class LMCTS(object):
 
     @partial(jax.jit, static_argnums=(0,))
     def fill(self, vector):
-        return FrozenDict({'params': {key: fct(vector) for key, fct in self.slicing_funtions.items()}})
+        return FrozenDict({'params': {key: fct(vector) for key, fct in self.slicing_funtions.items()}}).unfreeze()
 
     def update_law(self, idx, features, labels, step_size, noise, theta):
         grad_theta = self.grad_function(theta, features, labels)

@@ -66,7 +66,7 @@ class VITS(object):
     def update_mean(self, mean, gradient, h):
         return mean - h * gradient
     
-    def updatye_cov(self, cov_semi, cov_semi_inv, hessian, h):
+    def update_cov(self, cov_semi, cov_semi_inv, hessian, h):
         cov_semi = (jnp.eye(self.utils_object.dimension) - h * hessian) @ cov_semi + h * cov_semi_inv.T
         if self.info.vits.approx:
             cov_semi_inv = cov_semi_inv @ (jnp.eye(self.utils_object.dimension) - h * (jnp.matmul(cov_semi_inv.T , cov_semi_inv) - hessian))
