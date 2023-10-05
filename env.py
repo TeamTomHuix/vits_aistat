@@ -40,6 +40,8 @@ class LinearDataset(object):
     def context_fct(self, idx):
         return self.contexts[idx, :, :]
     
+"""
+  
 class LinearIllDataset(object):
     def __init__(self, info, theta_key, data_key):
         self.info = info
@@ -70,10 +72,50 @@ class LinearIllDataset(object):
         reward = self.mean[idx, action] + self.noise[idx]
         expected_reward = self.mean[idx, action].squeeze()
         best_expected_reward = jnp.max(self.mean[idx, :])
+        raise ValueError(reward.shape, expected_reward.shape, best_expected_reward.shape)
         return data_key, reward, expected_reward, best_expected_reward
 
     def context_fct(self, idx):
-        return self.contexts[idx, :, :]
+        return self.contexts[idx].T
+"""
+class LinearIllDataset(object):
+    def __init__(self, info, theta_key, data_key):
+        self.info = info
+        self.theta = self.init_theta_star(theta_key)
+        self.contexts = self.generate_data(data_key)
+
+    def init_theta_star(self, theta_key):
+        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
+        theta /= jnp.linalg.norm(theta, ord=2)
+        return theta
+
+    def generate_data(self, data_key):
+        key, subkey = jax.random.split(data_key)
+        contexts = jax.random.normal(subkey, shape=(self.info.T, self.info.ctx_dim))
+        key, subkey = jax.random.split(key)
+        arm_features = jax.random.normal(subkey, shape=(self.info.nb_arms, self.info.ctx_dim))
+        key, subkey = jax.random.split(key)
+        Wx = jax.random.normal(subkey, shape=(self.info.ctx_dim, self.info.ctx_dim))
+        key, subkey = jax.random.split(key)
+        Wa = jax.random.normal(subkey, shape=(self.info.ctx_dim, self.info.ctx_dim))
+        user_embeddings = contexts @ Wx 
+        arm_embeddings = arm_features @ Wa
+        contexts = user_embeddings[:, None, :] * arm_embeddings[None, :, :]
+        contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
+        return contexts
+
+    def reward_fct(self, idx, data_key, action):
+        ctx_vector = self.contexts[idx]
+        rewards = ctx_vector @ self.theta
+        reward = rewards[action][0]
+        expected_reward = reward
+        best_expected_reward = jnp.max(rewards)
+        return data_key, reward, expected_reward, best_expected_reward
+
+    def context_fct(self, idx):
+        return self.contexts[idx]
+    
+
 
 #class LinearIllDataset(object):
 #    def __init__(self, info, theta_key, data_key):

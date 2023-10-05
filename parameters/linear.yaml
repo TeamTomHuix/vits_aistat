@@ -4,15 +4,15 @@ key:
   agent: 0
 
 
-env: 'linearill'
+env: 'linear'
 agent_name: ???
 T: 5000
 lbd: ???
-ctx_dim: 10
+ctx_dim: 20
 eta: ???
-d: 10
-nb_arms: 10
-std_reward: 0.1
+d: 20
+nb_arms: 50
+std_reward: 1
 context_noise: 0.1
 
 model:
