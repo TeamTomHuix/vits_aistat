@@ -19,13 +19,13 @@ class LinearDataset(object):
 
     def init_theta_star(self, theta_key):
         theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
-        theta /= jnp.linalg.norm(theta, ord=2)
+        #theta /= jnp.linalg.norm(theta, ord=2)
         return theta
 
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
         contexts = jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
-        contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
+        #contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
         noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))

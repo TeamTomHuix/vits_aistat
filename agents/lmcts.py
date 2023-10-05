@@ -45,13 +45,17 @@ class LMCTS(object):
 
     @partial(jax.jit, static_argnums=(0,))
     def fill(self, vector):
-        return FrozenDict({'params': {key: fct(vector) for key, fct in self.slicing_funtions.items()}}).unfreeze()
+        return {'params': {key: fct(vector) for key, fct in self.slicing_funtions.items()}}
 
-    def update_law(self, idx, features, labels, step_size, noise, theta):
+    def update_law(self, key, idx, features, labels, step_size, theta):
         grad_theta = self.grad_function(theta, features, labels)
-        noise_tree = self.fill(noise[idx])
-        theta = jax.tree_util.tree_map(lambda t, g, n: t - step_size * g + n, theta, grad_theta, noise_tree)
-        return theta
+        #raise ValueError(idx, noises[idx])
+        key, subkey = jax.random.split(key)
+        noise = np.sqrt(2 * step_size / self.info.eta) * jax.random.normal(subkey, (self.utils_object.dimension,))
+        dict_noise = self.fill(noise)
+        theta = jax.tree_util.tree_map(lambda t, g, n: t - step_size * g + n,
+                                    theta, grad_theta, dict_noise)
+        return key, theta
 
     def update_fct(self, key, context, action, reward, utils_vector):
         features, labels, theta = utils_vector
@@ -59,14 +63,11 @@ class LMCTS(object):
         labels = labels.at[-1].set(reward)
         step_size = self.info.lmcts.step_size / features.shape[0]
 
-        key, subkey = jax.random.split(key)
-        noises = np.sqrt(2 * step_size / self.info.eta) * jax.random.normal(subkey, shape=(self.info.lmcts.num_updates, self.utils_object.dimension))
-
-        theta = jax.lax.fori_loop(
+        key, theta = jax.lax.fori_loop(
             0,
             self.info.lmcts.num_updates,
-            lambda i, theta: self.update_law(i, features, labels, step_size, noises, theta),
-            theta,
+            lambda i, x: self.update_law(x[0], i, features, labels, step_size, x[1]),
+           (key, theta),
         )
         return key, (features, labels, theta)
 
