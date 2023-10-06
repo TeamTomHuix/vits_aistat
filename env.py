@@ -19,13 +19,22 @@ class LinearDataset(object):
 
     def init_theta_star(self, theta_key):
         theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
-        #theta /= jnp.linalg.norm(theta, ord=2)
+        theta /= jnp.linalg.norm(theta, ord=2)
         return theta
 
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
-        contexts = jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
-        #contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
+
+        if self.info.fixed:
+            pool = jax.random.normal(subkey, shape=(50, self.info.ctx_dim))
+            pool /= jnp.linalg.norm(pool, ord=2, axis=1, keepdims=True)
+            key, subkey = jax.random.split(key)
+            indexes = jax.random.randint(subkey, minval=0, maxval=50, shape=(self.info.T, self.info.nb_arms))
+            contexts = pool[indexes]
+        else:
+            contexts = jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
+            contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
+        
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
         noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
@@ -92,25 +101,30 @@ class LinearIllDataset(object):
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
         contexts = jax.random.normal(subkey, shape=(self.info.T, self.info.ctx_dim))
+        contexts /= jnp.linalg.norm(contexts, ord=2, axis=1, keepdims=True)
         key, subkey = jax.random.split(key)
         arm_features = jax.random.normal(subkey, shape=(self.info.nb_arms, self.info.ctx_dim))
+        arm_features /= jnp.linalg.norm(arm_features, ord=2, axis=1, keepdims=True)
         key, subkey = jax.random.split(key)
         Wx = jax.random.normal(subkey, shape=(self.info.ctx_dim, self.info.ctx_dim))
+        Wx /= jnp.linalg.norm(Wx, ord=2, keepdims=True)
         key, subkey = jax.random.split(key)
         Wa = jax.random.normal(subkey, shape=(self.info.ctx_dim, self.info.ctx_dim))
+        Wa /= jnp.linalg.norm(Wa, ord=2, keepdims=True)
         user_embeddings = contexts @ Wx 
         arm_embeddings = arm_features @ Wa
         contexts = user_embeddings[:, None, :] * arm_embeddings[None, :, :]
-        contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
+        #contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
         return contexts
 
     def reward_fct(self, idx, data_key, action):
         ctx_vector = self.contexts[idx]
-        rewards = ctx_vector @ self.theta
-        reward = rewards[action][0]
-        expected_reward = reward
-        best_expected_reward = jnp.max(rewards)
-        return data_key, reward, expected_reward, best_expected_reward
+        mean_rewards = ctx_vector @ self.theta 
+        key, subkey = jax.random.split(data_key)
+        reward = mean_rewards[action][0] + self.info.std_reward * jax.random.normal(subkey, shape=(1,))[0]
+        expected_reward = mean_rewards[action][0]
+        best_expected_reward = jnp.max(mean_rewards)
+        return key, reward, expected_reward, best_expected_reward
 
     def context_fct(self, idx):
         return self.contexts[idx]
