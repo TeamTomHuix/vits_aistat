@@ -24,20 +24,14 @@ class LinearDataset(object):
 
     def generate_data(self, data_key):
         key, subkey = jax.random.split(data_key)
-
-        if self.info.fixed:
-            pool = jax.random.normal(subkey, shape=(50, self.info.ctx_dim))
-            #pool /= jnp.linalg.norm(pool, ord=2, axis=1, keepdims=True)
-            key, subkey = jax.random.split(key)
-            indexes = jax.random.randint(subkey, minval=0, maxval=50, shape=(self.info.T, self.info.nb_arms))
-            contexts = pool[indexes]
-        else:
-            contexts = jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
-            #contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
-        
+        pool = jax.random.normal(subkey, shape=(50, self.info.ctx_dim))
+        key, subkey = jax.random.split(key)
+        indexes = jax.random.randint(subkey, minval=0, maxval=50, shape=(self.info.T, self.info.nb_arms))
+        key, subkey = jax.random.split(key)
+        contexts = pool[indexes] + self.info.context_noise * jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
         mean = (contexts @ self.theta).squeeze()
         key, subkey = jax.random.split(key)
-        noise = self.info.std_reward * jax.random.normal(subkey, shape=(self.info.T,))
+        noise = np.sqrt(1 + self.info.context_noise**2) * jax.random.normal(subkey, shape=(self.info.T,))
         return contexts, mean, noise
 
     def reward_fct(self, idx, data_key, action):
