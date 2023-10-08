@@ -52,6 +52,8 @@ class LogisticDataset(object):
         self.theta = self.init_theta_star(theta_key)
         self.features, self.mean = self.generate_data(data_key)
 
+        print()
+
     def init_theta_star(self, theta_key):
         theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1)) / np.sqrt(self.info.ctx_dim)
         #theta /= jnp.linalg.norm(theta, ord=2)
@@ -80,6 +82,7 @@ class LogisticDataset(object):
 
     def context_fct(self, idx):
         return self.features[idx, :, :]
+    
 
 
 
