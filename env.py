@@ -42,7 +42,63 @@ class LinearDataset(object):
 
     def context_fct(self, idx):
         return self.contexts[idx, :, :]
-    
+
+
+######################
+
+class LogisticDataset(object):
+    def __init__(self, info, theta_key, data_key):
+        self.info = info
+        self.theta = self.init_theta_star(theta_key)
+        self.features, self.mean = self.generate_data(data_key)
+
+    def init_theta_star(self, theta_key):
+        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1)) / np.sqrt(self.info.ctx_dim)
+        #theta /= jnp.linalg.norm(theta, ord=2)
+        return theta
+
+    def generate_data(self, data_key):
+        key, subkey = jax.random.split(data_key)
+        pool = jax.random.normal(subkey, shape=(50, self.info.ctx_dim))
+        key, subkey = jax.random.split(key)
+        indexes = jax.random.randint(subkey, minval=0, maxval=50, shape=(self.info.T, self.info.nb_arms))
+        key, subkey = jax.random.split(key)
+        contexts = pool[indexes] + self.info.context_noise * jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
+        mean = (contexts @ self.theta).squeeze()
+        key, subkey = jax.random.split(key)
+        noise = np.sqrt(1 + self.info.context_noise**2) * jax.random.normal(subkey, shape=(self.info.T,))
+        return contexts, mean, noise
+
+
+
+    def reward_fct(self, idx, data_key, action):
+        key, subkey = jax.random.split(data_key)
+        expected_reward = 1 / (1 + jnp.exp(-self.mean[idx, action]     ) )
+        reward = jnp.where(jax.random.bernoulli(subkey, p=expected_reward), 1, 0)
+        best_expected_reward = 1 / (1 + jnp.exp(-jnp.max(self.mean[idx, :])))
+        return key, reward, expected_reward, best_expected_reward
+
+    def context_fct(self, idx):
+        return self.features[idx, :, :]
+
+
+
+#info=dict({"context_noise":0.1,"T":1000,"nb_arms":10,"ctx_dim":20})
+
+# class Info(object):
+#     def __init__(self):
+#         self.T=1000
+#         self.nb_arms=10
+#         self.ctx_dim=20
+#         self.context_noise=0.1
+
+# info=Info()
+# key, subkey = jax.random.split(203)
+# Data=LogisticDataset(info,theta_key=key, data_key=key)
+# print("finished")
+
+
+
 """
   
 class LinearIllDataset(object):
