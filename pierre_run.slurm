@@ -7,7 +7,7 @@
 #SBATCH --error=error_lmcts.out     
 #SBATCH --account=iks@v100
 #SBATCH --gres=gpu:1
-#SBATCH --gpus-per-task=1
+#SBATCH --gpus-per-task=11
 #SBATCH --array=0-15
 ##SBATCH -C a100
 

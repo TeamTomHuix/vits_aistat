@@ -12,7 +12,7 @@ ctx_dim: 20
 eta: ???
 d: 20
 nb_arms: 50
-context_noise: 0.5
+context_noise: 0.1
 
 model:
   layers: [1]
