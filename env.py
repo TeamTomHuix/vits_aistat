@@ -16,6 +16,7 @@ class LinearDataset(object):
         self.info = info
         self.theta = self.init_theta_star(theta_key)
         self.contexts, self.mean, self.noise = self.generate_data(data_key)
+       
 
     def init_theta_star(self, theta_key):
         theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1)) / np.sqrt(self.info.ctx_dim)
@@ -50,12 +51,14 @@ class LogisticDataset(object):
     def __init__(self, info, theta_key, data_key):
         self.info = info
         self.theta = self.init_theta_star(theta_key)
-        self.features, self.mean = self.generate_data(data_key)
-
-        print()
+        self.features, self.mean ,noise= self.generate_data(data_key)
+        
+        #jax.debug.print(self.theta.T@jnp.transpose(self.contexts ,(1,2,0) ) )
+        #print(np.mean(self.theta.T@jnp.transpose(self.features ,(1,2,0) ) ))
+        
 
     def init_theta_star(self, theta_key):
-        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1)) / np.sqrt(self.info.ctx_dim)
+        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1)) / np.sqrt(self.info.ctx_dim) 
         #theta /= jnp.linalg.norm(theta, ord=2)
         return theta
 
@@ -67,6 +70,7 @@ class LogisticDataset(object):
         key, subkey = jax.random.split(key)
         contexts = pool[indexes] + self.info.context_noise * jax.random.normal(subkey, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
         mean = (contexts @ self.theta).squeeze()
+        #print("print",mean.var())
         key, subkey = jax.random.split(key)
         noise = np.sqrt(1 + self.info.context_noise**2) * jax.random.normal(subkey, shape=(self.info.T,))
         return contexts, mean, noise
@@ -229,32 +233,32 @@ class LinearIllDataset(object):
 #        return self.contexts
     
 
-class LogisticDataset(object):
-    def __init__(self, info, theta_key, data_key):
-        self.info = info
-        self.theta = self.init_theta_star(theta_key)
-        self.features, self.mean = self.generate_data(data_key)
+# class LogisticDataset(object):
+#     def __init__(self, info, theta_key, data_key):
+#         self.info = info
+#         self.theta = self.init_theta_star(theta_key)
+#         self.features, self.mean = self.generate_data(data_key)
 
-    def generate_data(self, data_key):
-        contexts = jax.random.normal(data_key, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
-        contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
-        mean = (contexts @ self.theta).squeeze()
-        return contexts, mean
+#     def generate_data(self, data_key):
+#         contexts = jax.random.normal(data_key, shape=(self.info.T, self.info.nb_arms, self.info.ctx_dim))
+#         contexts /= jnp.linalg.norm(contexts, ord=2, axis=2, keepdims=True)
+#         mean = (contexts @ self.theta).squeeze()
+#         return contexts, mean
 
-    def init_theta_star(self, theta_key):
-        theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
-        theta /= jnp.linalg.norm(theta, ord=2)
-        return theta
+#     def init_theta_star(self, theta_key):
+#         theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1))
+#         theta /= jnp.linalg.norm(theta, ord=2)
+#         return theta
 
-    def reward_fct(self, idx, data_key, action):
-        key, subkey = jax.random.split(data_key)
-        expected_reward = 1 / (1 + jnp.exp(-self.mean[idx, action]) ) 
-        reward = jnp.where(jax.random.bernoulli(subkey, p=expected_reward), 1, 0)
-        best_expected_reward = 1 / (1 + jnp.exp(-jnp.max(self.mean[idx, :])))
-        return key, reward, expected_reward, best_expected_reward
+#     def reward_fct(self, idx, data_key, action):
+#         key, subkey = jax.random.split(data_key)
+#         expected_reward = 1 / (1 + jnp.exp(-self.mean[idx, action]) ) 
+#         reward = jnp.where(jax.random.bernoulli(subkey, p=expected_reward), 1, 0)
+#         best_expected_reward = 1 / (1 + jnp.exp(-jnp.max(self.mean[idx, :])))
+#         return key, reward, expected_reward, best_expected_reward
 
-    def context_fct(self, idx):
-        return self.features[idx, :, :]
+#     def context_fct(self, idx):
+#         return self.features[idx, :, :]
 
 
 class LogisticIllDataset(object):
