@@ -53,16 +53,8 @@ class VITS(object):
     def get_gradient(self, theta, features, labels):
         regularization_grad = 2 * self.info.lbd * theta
         data_grad = jnp.sum(jax.vmap(self.grad_function, in_axes=(None, 0, 0))(theta, features, labels), axis=0)
-        return self.info.eta * (regularization_grad + data_grad)
+        return self.info.eta * (regularization_grad + data_grad) #/ 2
     
-    def get_hessian(self, theta, cov_semi_inv, mean, gradient, features, labels):
-        if self.info.vits.hessian_free:
-            return (cov_semi_inv @ cov_semi_inv.T) @ (theta - mean).T @ gradient[None, :]
-        else:
-            regularization_hessian = 2 * self.info.lbd * jnp.eye(self.utils_object.dimension)
-            data_hessian = jnp.sum(jax.vmap(self.hessian_function, in_axes=(None, 0, 0))(theta, features, labels), axis=0)
-            return self.info.eta *  (regularization_hessian + data_hessian)
-
     def update_mean(self, mean, gradient, h):
         return mean - h * gradient
     
@@ -71,7 +63,7 @@ class VITS(object):
         if self.info.vits.approx:
             cov_semi_inv = cov_semi_inv @ (jnp.eye(self.utils_object.dimension) - h * (jnp.matmul(cov_semi_inv.T , cov_semi_inv) - hessian))
         else:
-            cov_semi_inv = jnp.linalg.inv(cov_semi)
+            cov_semi_inv = jnp.linalg.pinv(cov_semi)
         return cov_semi, cov_semi_inv
     
 
@@ -80,17 +72,38 @@ class VITS(object):
         gradient = self.get_gradient(theta, features, labels)
         hessian = self.get_hessian(theta, cov_semi_inv, mean, gradient, features, labels)
         return gradient, hessian
+    
+    def mc_approxiation_hessian_free(self, key, mean, features, labels, cov_semi, cov_semi_inv):
+        eps = jax.random.normal(key, shape=(self.utils_object.dimension, 1))
+        theta = (mean.T + cov_semi @ eps).squeeze()
+        regularization_grad = 2 * self.info.lbd * theta
+        data_grad = jnp.sum(jax.vmap(self.grad_function, in_axes=(None, 0, 0))(theta, features, labels), axis=0)
+        gradient = self.info.eta * (regularization_grad + data_grad)
+        mc_approx = eps @ data_grad[None, :]
+        return gradient, mc_approx
+    
+    def mc_approxiation_hessian(self, key, mean, features, labels, cov_semi, cov_semi_inv):
+        eps = jax.random.normal(key, shape=(self.utils_object.dimension, 1))
+        theta = (mean.T + cov_semi @ eps).squeeze()
+        regularization_grad = 2 * self.info.lbd * theta
+        data_grad = jnp.sum(jax.vmap(self.grad_function, in_axes=(None, 0, 0))(theta, features, labels), axis=0)
+        gradient = self.info.eta * (regularization_grad + data_grad)
+        regularization_hessian = 2 * self.info.lbd * jnp.eye(self.utils_object.dimension)
+        data_hessian = jnp.sum(jax.vmap(self.hessian_function, in_axes=(None, 0, 0))(theta, features, labels), axis=0)
+        hessian = self.info.eta *  (regularization_hessian + data_hessian)
+        return gradient, hessian
   
     def update_law(self, idx, features, labels,key, mean, cov_semi, cov_semi_inv):
         key, subkey = jax.random.split(key)
-        gradients, hessian = jax.vmap(lambda k: self.compute_gradients( k,
-                                                                        mean,
-                                                                        features,
-                                                                        labels,
-                                                                        cov_semi,
-                                                                        cov_semi_inv))(jax.random.split(subkey, self.info.vits.mc_samples))
-        gradient = jnp.mean(gradients, axis=0)
-        hessian = jnp.mean(hessian, axis=0)
+
+        if self.info.vits.hessian_free:
+            gradients, mc_approx = jax.vmap(lambda k: self.mc_approxiation_hessian_free(k, mean, features, labels, cov_semi, cov_semi_inv))(jax.random.split(subkey, self.info.vits.mc_samples))
+            gradient = jnp.mean(gradients, axis=0)
+            hessian = self.info.eta * (cov_semi_inv.T @ jnp.mean(mc_approx, axis=0) + 2 * self.info.lbd * jnp.eye(self.info.ctx_dim))
+        else:
+            gradients, hessian = jax.vmap(lambda k: self.mc_approxiation_hessian(k, mean, features, labels, cov_semi, cov_semi_inv))(jax.random.split(subkey, self.info.vits.mc_samples))
+            gradient = jnp.mean(gradients, axis=0)
+            hessian = jnp.mean(hessian, axis=0)
         h = self.info.vits.step_size / features.shape[0]
         mean = self.update_mean(mean, gradient, h)
         cov_semi, cov_semi_inv = self.update_cov(cov_semi, cov_semi_inv, hessian, h)
@@ -107,11 +120,3 @@ class VITS(object):
             lambda i, v: self.update_law(i, features, labels, *v),
             (key, mean, cov_semi, cov_semi_inv))
         return key, (features, labels, mean, cov_semi, cov_semi_inv)
-    
-    def compute_cond_number(self, key, utils_vector):
-        features, labels, mean, cov_semi, _ = utils_vector
-        subkey, theta = self.sample(key, mean, cov_semi)
-        regularization_hessian = 2 * self.info.lbd * jnp.eye(self.utils_object.dimension)
-        data_hessian = jnp.sum(jax.vmap(self.hessian_function, in_axes=(None, 0, 0))(theta, features, labels), axis=0)
-        hessian = self.info.eta *  (regularization_hessian + data_hessian)
-        return subkey, jnp.linalg.cond(hessian)
