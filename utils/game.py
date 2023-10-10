@@ -57,8 +57,8 @@ class Game(object):
                     "reward": jax.device_get(reward),
                     "is_arm_0": 1 if action == 0 else 0,
                     "is_arm_1": 1 if action == 1 else 0,
-                    #"condition_number": jax.device_get(condition_number)
-                    })
+                  #  "condition_number": jax.device_get(condition_number)
+                   })
         wandb.finish()
         return cum_regret
 
