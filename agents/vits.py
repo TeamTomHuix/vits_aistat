@@ -73,12 +73,24 @@ class VITS(object):
         else:
             cov_semi_inv = jnp.linalg.inv(cov_semi)
         return cov_semi, cov_semi_inv
+    
+
+    def compute_gradients(self, key, mean, features, labels, cov_semi, cov_semi_inv):
+        key, theta = self.sample(key, mean, cov_semi)
+        gradient = self.get_gradient(theta, features, labels)
+        hessian = self.get_hessian(theta, cov_semi_inv, mean, gradient, features, labels)
+        return gradient, hessian
   
     def update_law(self, idx, features, labels,key, mean, cov_semi, cov_semi_inv):
         key, subkey = jax.random.split(key)
-        _, theta = self.sample(subkey, mean, cov_semi)
-        gradient = self.get_gradient(theta, features, labels)
-        hessian = self.get_hessian(theta, cov_semi_inv, mean, gradient, features, labels)
+        gradients, hessian = jax.vmap(lambda k: self.compute_gradients( k,
+                                                                        mean,
+                                                                        features,
+                                                                        labels,
+                                                                        cov_semi,
+                                                                        cov_semi_inv))(jax.random.split(subkey, self.info.vits.mc_samples))
+        gradient = jnp.mean(gradients, axis=0)
+        hessian = jnp.mean(hessian, axis=0)
         h = self.info.vits.step_size / features.shape[0]
         mean = self.update_mean(mean, gradient, h)
         cov_semi, cov_semi_inv = self.update_cov(cov_semi, cov_semi_inv, hessian, h)
