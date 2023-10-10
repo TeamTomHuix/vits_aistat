@@ -13,7 +13,7 @@ os.environ["WANDB_MODE"] = "offline"
 
 @hydra.main(config_path="parameters", config_name="logistic")
 def main(args: DictConfig):
-    wandb.init(config=dict(args), project=f"{args.env}_{args.agent_name}")
+    wandb.init(config=dict(args), project=f"{args.env}_{args.agent_name}_{args.context_noise}")
     game = Game(args)
     game.run_toy()
 
