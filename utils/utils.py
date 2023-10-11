@@ -146,7 +146,7 @@ class UtilsVector(object):
         labels = jnp.zeros((self.info.T))
         mean = jnp.zeros((1, self.dimension))
         cov = jnp.eye(self.dimension) / (self.info.eta * self.info.lbd)
-        return features, labels, mean, cov
+        return features, labels, mean, cov 
 
     def init_VTS(self):
         features = jnp.zeros((self.info.T, self.info.ctx_dim))

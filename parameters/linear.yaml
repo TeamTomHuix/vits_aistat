@@ -12,7 +12,7 @@ ctx_dim: 20
 eta: ???
 d: 20
 nb_arms: 50
-context_noise: 0.5
+context_noise: 1
 
 model:
   layers: [1]
@@ -23,10 +23,12 @@ lmcts:
   step_size: 0.01
 
 vits:
-  hessian_free: false
+  hessian_free: true
   approx: false
-  step_size: 0.01
+  step_size_mean: 0.001
+  step_size_cov: 0.001
   num_updates: 10
+  mc_samples: 1
 
 vts:
   num_updates: 10
