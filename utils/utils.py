@@ -15,7 +15,7 @@ class MLP(nn.Module):
     def __call__(self, x):
         for feat in self.features[:-1]:
             x = nn.tanh(nn.Dense(feat)(x))
-        x = nn.Dense(self.features[-1 ] , use_bias=False)(x)
+        x = nn.Dense(self.features[-1] , use_bias=False)(x)
         return x
     
     def __hash__(self):
@@ -135,8 +135,8 @@ class UtilsVector(object):
         features = jnp.zeros((self.info.T, self.info.ctx_dim))
         labels = jnp.zeros((self.info.T))
         mean = jnp.zeros((1, self.dimension))
-        cov_semi = jnp.eye(self.dimension) / jnp.sqrt(self.info.eta * self.info.lbd)
-        cov_semi_inv = jnp.eye(self.dimension) * jnp.sqrt(self.info.eta * self.info.lbd)
+        cov_semi = jnp.eye(self.dimension) / jnp.sqrt(self.info.eta)
+        cov_semi_inv = jnp.eye(self.dimension) * jnp.sqrt(self.info.eta)
         return features, labels, mean, cov_semi, cov_semi_inv
     
     def init_RVITS(self):
