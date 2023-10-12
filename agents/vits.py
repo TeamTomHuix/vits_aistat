@@ -103,8 +103,8 @@ class VITS(object):
             gradients, hessian = jax.vmap(lambda k: self.mc_approxiation_hessian(k, mean, features, labels, cov_semi, cov_semi_inv))(jax.random.split(subkey, self.info.vits.mc_samples))
             gradient = jnp.mean(gradients, axis=0)
             hessian = jnp.mean(hessian, axis=0)
-        mean = self.update_mean(mean, gradient, self.info.vits.step_size_mean / features.shape[0])
-        cov_semi, cov_semi_inv = self.update_cov(cov_semi, cov_semi_inv, hessian, self.info.vits.step_size_cov / features.shape[0])
+        mean = self.update_mean(mean, gradient, self.info.vits.step_size_mean / (self.info.eta *features.shape[0]))
+        cov_semi, cov_semi_inv = self.update_cov(cov_semi, cov_semi_inv, hessian, self.info.vits.step_size_cov /( self.info.eta*features.shape[0]))
         return (key, mean, cov_semi, cov_semi_inv)
 
     def update_fct(self, key, context, action, reward, utils_vector):
