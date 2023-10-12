@@ -113,7 +113,6 @@ class Langevin(object):
         self.nb_updates = nb_updates
         self.theta = torch.tensor(mean_prior, dtype=torch.float32)
 
-    
     def get_config(self):
         return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'h': self.h,
                 'nb_updates': self.nb_updates, 'algorithm': 'lmcts'}
@@ -125,7 +124,7 @@ class Langevin(object):
         if self.linear:
             data_term = torch.sum(torch.square(self.users @ theta - self.rewards))
             regu = self.lbd * theta.dot(theta)
-            return self.eta * (data_term + regu) / 2
+            return data_term + regu
         else:
             raise ValueError('to implement')
     
@@ -133,7 +132,6 @@ class Langevin(object):
         self.theta.requires_grad = True
         gradient = grad(self.potential(self.theta), self.theta)[0]
         self.theta.requires_grad = False
-       
         return gradient
     
     def update(self, user, action, reward):
@@ -141,11 +139,9 @@ class Langevin(object):
         self.rewards = torch.cat([self.rewards, torch.tensor([reward], dtype=torch.float32)])
         h = self.h / len(self.rewards) 
         for _ in range(self.nb_updates):
-            gradient= self.compute_gradient()
-            self.theta -= h * gradient +   np.sqrt(2 * h/ self.eta) *torch.normal(torch.zeros(gradient.shape),std=torch.ones(gradient.shape))
-            
+            gradient = self.compute_gradient()
+            self.theta -= h * gradient + torch.normal(0, np.sqrt(2 * h / self.eta), size=gradient.shape)
             del gradient
-    
     
 class MovieLens(object):
     def __init__(self, dimension, regularisation, nb_iters, device):
@@ -229,6 +225,7 @@ class MovieLens(object):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed')
+parser.add_argument('--algo')
             
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -237,35 +234,36 @@ if __name__ == "__main__":
     dimension = 5
     data = MovieLens(dimension, 1, 50, device)
 
+    eta_list = [250]
+    lbd_list = [1]
 
-    eta_list = [10, 100, 500, 1000]
-    lbd_list = [0.01, 0.1, 1]
-
-
-    eta_list = [10]
-    lbd_list=[0.01]
-
-    #seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    seeds = [54]
     T = 5000
+
+    if args.algo == 'ts':
+        algo_name = 'TS'
+        algo = ThompsonSampling
+        hyperparameter = lambda eta, lbd : (eta, lbd)
+    elif args.algo == 'vits':
+        algo_name = 'VITS'
+        algo = VITS
+        hyperparameter = lambda eta, lbd : (eta, lbd, True, 0.1, 10)
+    elif args.algo == 'lmcts':
+        algo_name = 'LMC-TS'
+        algo = Langevin
+        hyperparameter = lambda eta, lbd : (eta, lbd, True, 0.01, 150)
+    else:
+        raise ValueError(args.algo)
+
     df = pd.DataFrame()
     for eta in eta_list:
         for lbd in lbd_list:
-            # row_ts = pd.DataFrame({'seed': args.seed,
-            #                         'legend': f'TS - eta: {eta} - lambda: {lbd}',
-            #                         'step': range(T),
-            #                         'cum_regret': data.compute(ThompsonSampling, (eta, lbd), T, dimension)})
-            # row_vits = pd.DataFrame({'seed': args.seed,
-            #                         'legend': f'VITS - eta: {eta} - lambda: {lbd}',
-            #                         'step': range(T),
-            #                         'cum_regret': data.compute(VITS, (eta, lbd, True, 0.1, 10), T, dimension)})
-            row_lmcts = pd.DataFrame({'seed': args.seed,
-                                    'legend': f'VITS - eta: {eta} - lambda: {lbd}',
-                                    'step': range(T),
-                                    'cum_regret': data.compute(Langevin, (eta, lbd, True, 0.1, 50), T, dimension)})
-            #df = pd.concat([df, row_ts, row_vits], ignore_index=True)
-            df = pd.concat([df, row_lmcts], ignore_index=True)
-    pkl.dump(df, open('resultat.pkl', 'wb'))
+            row = pd.DataFrame({'seed': args.seed,
+                                'legend': f'{algo_name} - eta: {eta} - lambda: {lbd}',
+                                'step': range(T),
+                                'cum_regret': data.compute(algo, hyperparameter(eta, lbd), T, dimension)})
+            df = pd.concat([df, row], ignore_index=True)
+
+    #pkl.dump(df, open('resultat.pkl', 'wb'))
     #plt.style.use('seaborn')
     #sns.lineplot(data=df, x='step', y='cum_regret', hue='legend')
     #plt.savefig()
