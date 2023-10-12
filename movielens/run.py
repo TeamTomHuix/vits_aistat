@@ -98,6 +98,53 @@ class VITS(object):
             self.mean -= h * gradient
             self.cov_semi, self.cov_semi_inv = self.update_cov(h, hessian_matrix)
             del gradient, hessian_matrix
+
+
+
+class Langevin(object):
+    def __init__(self, dimension, mean_prior,cov_prior, eta, lbd, is_linear, h, nb_updates):
+        self.eta = eta
+        self.lbd = lbd
+        self.dimension = dimension
+        self.users = torch.empty((0, dimension))
+        self.rewards = torch.empty((0,))
+        self.linear = is_linear
+        self.h = h
+        self.nb_updates = nb_updates
+        self.theta = torch.tensor(mean_prior, dtype=torch.float32)
+
+    
+    def get_config(self):
+        return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'h': self.h,
+                'nb_updates': self.nb_updates, 'algorithm': 'lmcts'}
+
+    def reward(self, user):
+        return user.dot(self.theta).item()
+    
+    def potential(self, theta):
+        if self.linear:
+            data_term = torch.sum(torch.square(self.users @ theta - self.rewards))
+            regu = self.lbd * theta.dot(theta)
+            return self.eta * (data_term + regu) / 2
+        else:
+            raise ValueError('to implement')
+    
+    def compute_gradient(self):
+        self.theta.requires_grad = True
+        gradient = grad(self.potential(self.theta), self.theta)[0]
+        self.theta.requires_grad = False
+       
+        return gradient
+    
+    def update(self, user, action, reward):
+        self.users = torch.cat([self.users, torch.tensor(user, dtype=torch.float32)[None, :]])
+        self.rewards = torch.cat([self.rewards, torch.tensor([reward], dtype=torch.float32)])
+        h = self.h / len(self.rewards) 
+        for _ in range(self.nb_updates):
+            gradient= self.compute_gradient()
+            self.theta -= h * gradient +   np.sqrt(2 * h/ self.eta) *torch.normal(torch.zeros(gradient.shape),std=torch.ones(gradient.shape))
+            
+            del gradient
     
     
 class MovieLens(object):
@@ -189,22 +236,35 @@ if __name__ == "__main__":
     print(f'[SYSTEM], device: {device}')
     dimension = 5
     data = MovieLens(dimension, 1, 50, device)
+
+
     eta_list = [10, 100, 500, 1000]
     lbd_list = [0.01, 0.1, 1]
-    seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+
+    eta_list = [10]
+    lbd_list=[0.01]
+
+    #seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    seeds = [54]
     T = 5000
     df = pd.DataFrame()
     for eta in eta_list:
         for lbd in lbd_list:
-            row_ts = pd.DataFrame({'seed': args.seed,
-                                    'legend': f'TS - eta: {eta} - lambda: {lbd}',
-                                    'step': range(T),
-                                    'cum_regret': data.compute(ThompsonSampling, (eta, lbd), T, dimension)})
-            row_vits = pd.DataFrame({'seed': args.seed,
+            # row_ts = pd.DataFrame({'seed': args.seed,
+            #                         'legend': f'TS - eta: {eta} - lambda: {lbd}',
+            #                         'step': range(T),
+            #                         'cum_regret': data.compute(ThompsonSampling, (eta, lbd), T, dimension)})
+            # row_vits = pd.DataFrame({'seed': args.seed,
+            #                         'legend': f'VITS - eta: {eta} - lambda: {lbd}',
+            #                         'step': range(T),
+            #                         'cum_regret': data.compute(VITS, (eta, lbd, True, 0.1, 10), T, dimension)})
+            row_lmcts = pd.DataFrame({'seed': args.seed,
                                     'legend': f'VITS - eta: {eta} - lambda: {lbd}',
                                     'step': range(T),
-                                    'cum_regret': data.compute(VITS, (eta, lbd, True, 0.1, 10), T, dimension)})
-            df = pd.concat([df, row_ts, row_vits], ignore_index=True)
+                                    'cum_regret': data.compute(Langevin, (eta, lbd, True, 0.1, 50), T, dimension)})
+            #df = pd.concat([df, row_ts, row_vits], ignore_index=True)
+            df = pd.concat([df, row_lmcts], ignore_index=True)
     pkl.dump(df, open('resultat.pkl', 'wb'))
     #plt.style.use('seaborn')
     #sns.lineplot(data=df, x='step', y='cum_regret', hue='legend')

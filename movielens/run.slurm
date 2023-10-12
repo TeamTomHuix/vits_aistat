@@ -5,7 +5,7 @@
 #SBATCH --output=output.txt
 #SBATCH --error=error.txt
 #SBATCH --gres=gpu:1
-#SBATCH -A nek@v100
+#SBATCH -A iks@v100
 #SBATCH -C v100
 #SBATCH --array=0-19
 
