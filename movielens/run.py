@@ -12,13 +12,14 @@ import seaborn as sns
 import wandb
 from torch.distributions.multivariate_normal import MultivariateNormal
 import argparse
-
+os.environ["WANDB_MODE"] = "offline"
 
 
 class ThompsonSampling(object):
-    def __init__(self, dimension, mean_prior, cov_prior, eta, lbd):
+    def __init__(self, dimension, mean_prior, cov_prior, device, eta, lbd):
         self.eta = eta
         self.lbd = lbd
+        self.device = device
         self.dimension = dimension
         self.V_inv =  eta * cov_prior
         self.bt = torch.diag(1/torch.diag(self.V_inv)) @ mean_prior
@@ -33,7 +34,7 @@ class ThompsonSampling(object):
         
     def reward(self, user):
         theta = self.sample_posterior()
-        return user.dot(theta)
+        return user.dot(theta).item()
         
     def update(self, user, action, reward):
         self.bt += reward * user
@@ -42,25 +43,26 @@ class ThompsonSampling(object):
     
     
 class VITS(object):
-    def __init__(self, dimension, mean_prior, cov_prior, eta, lbd, is_linear, h, nb_updates):
+    def __init__(self, dimension, mean_prior, cov_prior, device, eta, lbd, is_linear, h, nb_updates):
         self.eta = eta
+        self.device = device
         self.lbd = lbd
         self.dimension = dimension
-        self.users = torch.empty((0, dimension))
-        self.rewards = torch.empty((0,))
+        self.users = torch.empty((0, dimension)).to(self.device)
+        self.rewards = torch.empty((0,)).to(self.device)
         self.linear = is_linear
         self.h = h
         self.nb_updates = nb_updates
-        self.mean = torch.tensor(mean_prior, dtype=torch.float32)
-        self.cov_semi = torch.diag(torch.sqrt(torch.diag(torch.tensor(cov_prior, dtype=torch.float32))))
-        self.cov_semi_inv = torch.diag(1/torch.sqrt(torch.diag(torch.tensor(cov_prior, dtype=torch.float32))))
+        self.mean = torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
+        self.cov_semi = torch.diag(torch.sqrt(torch.diag(torch.tensor(cov_prior, dtype=torch.float32)))).to(self.device)
+        self.cov_semi_inv = torch.diag(1/torch.sqrt(torch.diag(torch.tensor(cov_prior, dtype=torch.float32)))).to(self.device)
         
     def get_config(self):
         return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'h': self.h,
                 'nb_updates': self.nb_updates, 'algorithm': 'VITS'}
 
     def sample_posterior(self):
-        eps = torch.normal(0, 1, size=(self.dimension,))
+        eps = torch.normal(0, 1, size=(self.dimension,)).to(self.device)
         theta = self.mean + self.cov_semi @ eps
         return theta
         
@@ -85,13 +87,13 @@ class VITS(object):
         return gradient, hessian_matrix
     
     def update_cov(self, h, hessian_matrix):
-        cov_semi = (torch.eye(self.dimension) - h * hessian_matrix) @ self.cov_semi + h * self.cov_semi_inv.T
+        cov_semi = (torch.eye(self.dimension).to(self.device) - h * hessian_matrix) @ self.cov_semi + h * self.cov_semi_inv.T
         cov_semi_inv = torch.linalg.pinv(cov_semi)
         return cov_semi, cov_semi_inv
         
     def update(self, user, action, reward):
-        self.users = torch.cat([self.users, torch.tensor(user, dtype=torch.float32)[None, :]])
-        self.rewards = torch.cat([self.rewards, torch.tensor([reward], dtype=torch.float32)])
+        self.users = torch.cat([self.users, torch.tensor(user, dtype=torch.float32)[None, :].to(self.device)])
+        self.rewards = torch.cat([self.rewards, torch.tensor([reward], dtype=torch.float32).to(self.device)])
         h = self.h / (len(self.rewards) * self.eta)
         for _ in range(self.nb_updates):
             gradient, hessian_matrix = self.compute_gradient_hessian()
@@ -102,16 +104,17 @@ class VITS(object):
 
 
 class Langevin(object):
-    def __init__(self, dimension, mean_prior,cov_prior, eta, lbd, is_linear, h, nb_updates):
+    def __init__(self, dimension, mean_prior, cov_prior, device, eta, lbd, is_linear, h, nb_updates):
         self.eta = eta
         self.lbd = lbd
+        self.device = device
         self.dimension = dimension
-        self.users = torch.empty((0, dimension))
-        self.rewards = torch.empty((0,))
+        self.users = torch.empty((0, dimension)).to(self.device)
+        self.rewards = torch.empty((0,)).to(self.device)
         self.linear = is_linear
         self.h = h
         self.nb_updates = nb_updates
-        self.theta = torch.tensor(mean_prior, dtype=torch.float32)
+        self.theta = torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
 
     def get_config(self):
         return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'h': self.h,
@@ -124,7 +127,7 @@ class Langevin(object):
         if self.linear:
             data_term = torch.sum(torch.square(self.users @ theta - self.rewards))
             regu = self.lbd * theta.dot(theta)
-            return data_term + regu
+            return (data_term + regu) / 2
         else:
             raise ValueError('to implement')
     
@@ -135,12 +138,12 @@ class Langevin(object):
         return gradient
     
     def update(self, user, action, reward):
-        self.users = torch.cat([self.users, torch.tensor(user, dtype=torch.float32)[None, :]])
-        self.rewards = torch.cat([self.rewards, torch.tensor([reward], dtype=torch.float32)])
+        self.users = torch.cat([self.users, torch.tensor(user, dtype=torch.float32).to(self.device)[None, :]])
+        self.rewards = torch.cat([self.rewards, torch.tensor([reward], dtype=torch.float32).to(self.device)])
         h = self.h / len(self.rewards) 
         for _ in range(self.nb_updates):
             gradient = self.compute_gradient()
-            self.theta -= h * gradient + torch.normal(0, np.sqrt(2 * h / self.eta), size=gradient.shape)
+            self.theta += -h * gradient + torch.normal(0, np.sqrt(2 * h / self.eta), size=gradient.shape).to(self.device)
             del gradient
     
 class MovieLens(object):
@@ -209,8 +212,8 @@ class MovieLens(object):
         self.movies = self.movies[np.random.choice(range(len(self.movies)), size=(100,)), :]
         mean_prior = torch.mean(self.movies, axis=0)
         cov_prior = torch.diag(torch.var(self.movies, axis=0))
-        agents = [Agent(self.dimension, mean_prior, cov_prior, *hyperparameters) for _ in range(len(self.movies))]
-        wandb.init(config=agents[0].get_config(), project='movielens')
+        agents = [Agent(self.dimension, mean_prior, cov_prior, self.device, *hyperparameters) for _ in range(len(self.movies))]
+        wandb.init(config=agents[0].get_config(), project='movielens_lmcts2')
         cumulative_regret = torch.zeros((T,))
         for t in range(T):
             user = self.sample_user()
@@ -226,7 +229,7 @@ class MovieLens(object):
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed')
 parser.add_argument('--algo')
-            
+parser.add_argument('--lr')
 if __name__ == "__main__":
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -234,8 +237,8 @@ if __name__ == "__main__":
     dimension = 5
     data = MovieLens(dimension, 1, 50, device)
 
-    eta_list = [250]
-    lbd_list = [1]
+    eta_list = [100]
+    lbd_list = [0.1]
 
     T = 5000
 
@@ -246,11 +249,11 @@ if __name__ == "__main__":
     elif args.algo == 'vits':
         algo_name = 'VITS'
         algo = VITS
-        hyperparameter = lambda eta, lbd : (eta, lbd, True, 0.1, 10)
+        hyperparameter = lambda eta, lbd : (eta, lbd, True, float(args.lr), 10)
     elif args.algo == 'lmcts':
         algo_name = 'LMC-TS'
         algo = Langevin
-        hyperparameter = lambda eta, lbd : (eta, lbd, True, 0.01, 150)
+        hyperparameter = lambda eta, lbd : (eta, lbd, True, float(args.lr), 100)
     else:
         raise ValueError(args.algo)
 
