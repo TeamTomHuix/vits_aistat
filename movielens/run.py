@@ -114,7 +114,8 @@ class Langevin(object):
         self.linear = is_linear
         self.h = h
         self.nb_updates = nb_updates
-        self.theta = torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
+        self.theta = torch.random.normal(0, 1, size=(mean_prior.shape)).to(self.device)
+        #torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
 
     def get_config(self):
         return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'h': self.h,
@@ -143,9 +144,9 @@ class Langevin(object):
         h = self.h / len(self.rewards) 
         for _ in range(self.nb_updates):
             gradient = self.compute_gradient()
-            self.theta += -h * gradient + torch.normal(0, np.sqrt(2 * h / self.eta), size=gradient.shape).to(self.device)
+            self.theta += - h * gradient + torch.normal(0, np.sqrt(2 * h / self.eta), size=gradient.shape).to(self.device)
             del gradient
-    
+
 class MovieLens(object):
     def __init__(self, dimension, regularisation, nb_iters, device):
         self.dimension = dimension
@@ -206,6 +207,18 @@ class MovieLens(object):
         rewards = [agent.reward(user) for agent in agents]
         return np.argmax(rewards)
     
+    def compute_condition(self, user, reward, eta, lbd):
+        if hasattr(self, 'input_x'):
+            self.input_x = torch.cat([self.input_x, torch.tensor(user, dtype=torch.float32).to(self.device)[None, :]])
+            self.output_y = torch.cat([self.output_y, torch.tensor([reward], dtype=torch.float32).to(self.device)])
+        else:
+            self.input_x = torch.empty((0, dimension)).to(self.device)
+            self.output_y = torch.empty((0,)).to(self.device)
+        Vt = self.input_x.T @ self.input_x + lbd * torch.eye(self.dimension)
+        bt = self.output_y @ self.input_x
+        cov = torch.linalg.inv(Vt) / eta
+        return torch.linalg.cond(cov)
+    
     def compute(self, Agent, hyperparameters, T, seed):
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -213,7 +226,7 @@ class MovieLens(object):
         mean_prior = torch.mean(self.movies, axis=0)
         cov_prior = torch.diag(torch.var(self.movies, axis=0))
         agents = [Agent(self.dimension, mean_prior, cov_prior, self.device, *hyperparameters) for _ in range(len(self.movies))]
-        wandb.init(config=agents[0].get_config(), project='movielens_lmcts2')
+        wandb.init(config=agents[0].get_config(), project='movielens_test')
         cumulative_regret = torch.zeros((T,))
         for t in range(T):
             user = self.sample_user()
@@ -221,7 +234,8 @@ class MovieLens(object):
             reward, expected_reward, best_expected_reward = self.evaluate(user, action)
             agents[action].update(user, action, reward)
             cumulative_regret[t] = cumulative_regret[t-1] + best_expected_reward - expected_reward
-            wandb.log({'cum_regret': cumulative_regret[t]})
+            #cond = self.compute_condition(user, reward, hyperparameters[0], hyperparameters[1])
+            wandb.log({'cum_regret': cumulative_regret[t]})#, 'condition_number': cond})
         wandb.finish()
         return cumulative_regret
     
@@ -236,9 +250,8 @@ if __name__ == "__main__":
     print(f'[SYSTEM], device: {device}')
     dimension = 5
     data = MovieLens(dimension, 1, 50, device)
-
     eta_list = [100]
-    lbd_list = [0.1]
+    lbd_list = [1]
 
     T = 5000
 
