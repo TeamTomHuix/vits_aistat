@@ -12,7 +12,7 @@ import seaborn as sns
 import wandb
 from torch.distributions.multivariate_normal import MultivariateNormal
 import argparse
-os.environ["WANDB_MODE"] = "offline"
+#os.environ["WANDB_MODE"] = "offline"
 
 
 class ThompsonSampling(object):
@@ -109,26 +109,31 @@ class Langevin(object):
         self.lbd = lbd
         self.device = device
         self.dimension = dimension
+        self.mean_prior = torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
         self.users = torch.empty((0, dimension)).to(self.device)
         self.rewards = torch.empty((0,)).to(self.device)
         self.linear = is_linear
         self.h = h
         self.nb_updates = nb_updates
-        self.theta = torch.random.normal(0, 1, size=(mean_prior.shape)).to(self.device)
-        #torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
+        self.theta = MultivariateNormal(torch.tensor(mean_prior, dtype=torch.float32).to(self.device), torch.eye(self.dimension)).sample()
 
     def get_config(self):
         return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'h': self.h,
                 'nb_updates': self.nb_updates, 'algorithm': 'lmcts'}
 
     def reward(self, user):
+        #h = self.h / ((len(self.rewards) +1))
+        #for _ in range(50):
+        #    gradient = self.compute_gradient()
+        #    self.theta += - h * gradient + torch.normal(0, np.sqrt(2 * h), size=gradient.shape).to(self.device)
+        #    del gradient
         return user.dot(self.theta).item()
     
     def potential(self, theta):
         if self.linear:
             data_term = torch.sum(torch.square(self.users @ theta - self.rewards))
-            regu = self.lbd * theta.dot(theta)
-            return (data_term + regu) / 2
+            regu = self.lbd * (theta - self.mean_prior).dot(theta - self.mean_prior)
+            return self.eta * (data_term + regu) / 2
         else:
             raise ValueError('to implement')
     
@@ -141,10 +146,10 @@ class Langevin(object):
     def update(self, user, action, reward):
         self.users = torch.cat([self.users, torch.tensor(user, dtype=torch.float32).to(self.device)[None, :]])
         self.rewards = torch.cat([self.rewards, torch.tensor([reward], dtype=torch.float32).to(self.device)])
-        h = self.h / len(self.rewards) 
+        h = self.h / (len(self.rewards))
         for _ in range(self.nb_updates):
             gradient = self.compute_gradient()
-            self.theta += - h * gradient + torch.normal(0, np.sqrt(2 * h / self.eta), size=gradient.shape).to(self.device)
+            self.theta += - h * gradient + torch.normal(0, np.sqrt(2 * h), size=gradient.shape).to(self.device)
             del gradient
 
 class MovieLens(object):
@@ -235,7 +240,7 @@ class MovieLens(object):
             agents[action].update(user, action, reward)
             cumulative_regret[t] = cumulative_regret[t-1] + best_expected_reward - expected_reward
             #cond = self.compute_condition(user, reward, hyperparameters[0], hyperparameters[1])
-            wandb.log({'cum_regret': cumulative_regret[t]})#, 'condition_number': cond})
+            wandb.log({'cum_regret': cumulative_regret[t], "action": action})#, 'condition_number': cond})
         wandb.finish()
         return cumulative_regret
     
