@@ -12,20 +12,19 @@ import seaborn as sns
 import wandb
 from torch.distributions.multivariate_normal import MultivariateNormal
 import argparse
-#os.environ["WANDB_MODE"] = "offline"
+os.environ["WANDB_MODE"] = "offline"
 
 
 class ThompsonSampling(object):
-    def __init__(self, dimension, mean_prior, cov_prior, device, eta, lbd):
+    def __init__(self, dimension, mean_prior, cov_prior, device, eta):
         self.eta = eta
-        self.lbd = lbd
         self.device = device
         self.dimension = dimension
-        self.V_inv =  eta * cov_prior
-        self.bt = torch.diag(1/torch.diag(self.V_inv)) @ mean_prior
+        self.V_inv =  self.eta * cov_prior
+        self.bt = torch.diag(1/(self.eta * torch.diag(cov_prior))) @  mean_prior
 
     def get_config(self):
-        return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'algorithm': 'TS'}
+        return {'eta': self.eta, 'dimension': self.dimension, 'algorithm': 'TS'}
         
     def sample_posterior(self):
         mean = self.V_inv @ self.bt
@@ -43,10 +42,9 @@ class ThompsonSampling(object):
     
     
 class VITS(object):
-    def __init__(self, dimension, mean_prior, cov_prior, device, eta, lbd, is_linear, h, nb_updates, approx, hessian_free, mc_samples):
+    def __init__(self, dimension, mean_prior, cov_prior, device, eta, is_linear, h, nb_updates, approx, hessian_free, mc_samples):
         self.eta = eta
         self.device = device
-        self.lbd = lbd
         self.dimension = dimension
         self.approx = approx
         self.hessian_free = hessian_free
@@ -61,7 +59,7 @@ class VITS(object):
         self.cov_semi_inv = torch.diag(1/torch.sqrt(torch.diag(torch.tensor(cov_prior, dtype=torch.float32)))).to(self.device)
         
     def get_config(self):
-        return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'h': self.h,
+        return {'eta': self.eta, 'dimension': self.dimension, 'h': self.h,
                 'nb_updates': self.nb_updates, 'algorithm': 'VITS'}
 
     def sample_posterior(self):
@@ -76,7 +74,8 @@ class VITS(object):
     def potential(self, theta):
         if self.linear:
             data_term = torch.sum(torch.square(self.users @ theta - self.rewards))
-            regu = self.lbd * theta.dot(theta)
+            regu = (theta - self.mean_prior).T @ self.cov_prior_inv @ (theta - self.mean_prior)
+            raise ValueError('to check')
             return self.eta * (data_term + regu) / 2
             #return torch.sum(torch.square(self.users @ theta - self.rewards))
         else:
@@ -119,12 +118,12 @@ class VITS(object):
 
 
 class Langevin(object):
-    def __init__(self, dimension, mean_prior, cov_prior, device, eta, lbd, is_linear, h, nb_updates):
+    def __init__(self, dimension, mean_prior, cov_prior, device, eta, is_linear, h, nb_updates):
         self.eta = eta
-        self.lbd = lbd
         self.device = device
         self.dimension = dimension
         self.mean_prior = torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
+        self.cov_prior_inv = torch.diag(1/torch.diag(cov_prior))
         self.users = torch.empty((0, dimension)).to(self.device)
         self.rewards = torch.empty((0,)).to(self.device)
         self.linear = is_linear
@@ -135,7 +134,7 @@ class Langevin(object):
         self.theta = torch.tensor(mean_prior, dtype=torch.float32).to(self.device) + torch.normal(0, np.sqrt(self.eta * self.lbd), size=(self.dimension,)).to(self.device)
 
     def get_config(self):
-        return {'eta': self.eta, 'lbd': self.lbd, 'dimension': self.dimension, 'h': self.h,
+        return {'eta': self.eta, 'dimension': self.dimension, 'h': self.h,
                 'nb_updates': self.nb_updates, 'algorithm': 'lmcts'}
 
     def reward(self, user):
@@ -163,8 +162,7 @@ class Langevin(object):
     def potential(self, theta):
         if self.linear:
             data_term = torch.sum(torch.square(self.users @ theta - self.rewards))
-            regu = self.lbd * (theta - self.mean_prior).dot(theta - self.mean_prior)
-            #regu = self.lbd * theta.dot(theta)
+            regu =  (theta - self.mean_prior).T @ self.cov_prior_inv @ (theta - self.mean_prior)
             return self.eta * (data_term + regu) / 2
         else:
             raise ValueError('to implement')
@@ -263,7 +261,7 @@ class MovieLens(object):
         mean_prior = torch.mean(self.movies, axis=0)
         cov_prior = torch.diag(torch.var(self.movies, axis=0))
         agents = [Agent(self.dimension, mean_prior, cov_prior, self.device, *hyperparameters) for _ in range(len(self.movies))]
-        wandb.init(config=agents[0].get_config(), project='movielens_lmcts')
+        wandb.init(config=agents[0].get_config(), project='movielens_ts')
         cumulative_regret = torch.zeros((T,))
         for t in range(T):
             user = self.sample_user()
@@ -287,34 +285,34 @@ if __name__ == "__main__":
     print(f'[SYSTEM], device: {device}')
     dimension = 5
     data = MovieLens(dimension, 1, 50, device)
-    eta_list = [100]
-    lbd_list = [1]
+    eta_list = [1, 5, 10, 50, 100]
+    #lbd_list = [1]
 
     T = 5000
 
     if args.algo == 'ts':
         algo_name = 'TS'
         algo = ThompsonSampling
-        hyperparameter = lambda eta, lbd : (eta, lbd)
+        hyperparameter = lambda eta : (eta,)
     elif args.algo == 'vits':
         algo_name = 'VITS'
         algo = VITS
-        hyperparameter = lambda eta, lbd : (eta, lbd, True, float(args.lr), 10, False, False, 1)
+        hyperparameter = lambda eta : (eta, True, float(args.lr), 10, False, False, 1)
     elif args.algo == 'lmcts':
         algo_name = 'LMC-TS'
         algo = Langevin
-        hyperparameter = lambda eta, lbd : (eta, lbd, True, float(args.lr), 100)
+        hyperparameter = lambda eta : (eta, True, float(args.lr), 100)
     else:
         raise ValueError(args.algo)
 
     df = pd.DataFrame()
     for eta in eta_list:
-        for lbd in lbd_list:
-            row = pd.DataFrame({'seed': args.seed,
-                                'legend': f'{algo_name} - eta: {eta} - lambda: {lbd}',
-                                'step': range(T),
-                                'cum_regret': data.compute(algo, hyperparameter(eta, lbd), T, dimension)})
-            df = pd.concat([df, row], ignore_index=True)
+        #for lbd in lbd_list:
+        row = pd.DataFrame({'seed': args.seed,
+                            'legend': f'{algo_name} - eta: {eta}',
+                            'step': range(T),
+                            'cum_regret': data.compute(algo, hyperparameter(eta), T, dimension)})
+        df = pd.concat([df, row], ignore_index=True)
 
     #pkl.dump(df, open('resultat.pkl', 'wb'))
     #plt.style.use('seaborn')
