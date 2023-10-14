@@ -12,11 +12,12 @@ import seaborn as sns
 import wandb
 from torch.distributions.multivariate_normal import MultivariateNormal
 import argparse
+import scipy
 os.environ["WANDB_MODE"] = "offline"
 
 
 class ThompsonSampling(object):
-    def __init__(self, dimension, mean_prior, cov_prior, device, eta):
+    def __init__(self, dimension, mean_prior, cov_prior, device, is_linear, eta):
         self.eta = eta
         self.device = device
         self.dimension = dimension
@@ -42,7 +43,7 @@ class ThompsonSampling(object):
     
     
 class VITS(object):
-    def __init__(self, dimension, mean_prior, cov_prior, device, eta, is_linear, h, nb_updates, approx, hessian_free, mc_samples):
+    def __init__(self, dimension, mean_prior, cov_prior, device, is_linear, eta, h, nb_updates, approx, hessian_free, mc_samples):
         self.eta = eta
         self.device = device
         self.dimension = dimension
@@ -59,6 +60,7 @@ class VITS(object):
         self.cov_prior_inv = torch.diag(1/(self.eta * torch.diag(cov_prior))).to(self.device)
         self.cov_semi = torch.diag(torch.sqrt(torch.diag(cov_prior))).to(self.device)
         self.cov_semi_inv = torch.diag(1/torch.sqrt(torch.diag(cov_prior))).to(self.device)
+        self.criterion = torch.nn.BCEWithLogitsLoss(reduction='sum')
         
     def get_config(self):
         return {'eta': self.eta, 'dimension': self.dimension, 'h': self.h,
@@ -80,7 +82,9 @@ class VITS(object):
             return self.eta * (data_term + regu) / 2
             #return torch.sum(torch.square(self.users @ theta - self.rewards))
         else:
-            raise ValueError('to implement')
+            data_term = self.criterion(self.users @ theta, self.rewards)
+            regu = (theta - self.mean_prior).T @ self.cov_prior_inv @ (theta - self.mean_prior)
+            return self.eta * (data_term + regu) / 2
     
     def compute_gradient_hessian(self):
         gradients = torch.zeros((self.mc_samples, self.dimension)).to(self.device)
@@ -119,7 +123,7 @@ class VITS(object):
 
 
 class Langevin(object):
-    def __init__(self, dimension, mean_prior, cov_prior, device, eta, is_linear, h, nb_updates):
+    def __init__(self, dimension, mean_prior, cov_prior, device, is_linear, eta, h, nb_updates):
         self.eta = eta
         self.device = device
         self.dimension = dimension
@@ -152,7 +156,9 @@ class Langevin(object):
             regu = (theta - self.mean_prior).T @ self.cov_prior_inv @ (theta - self.mean_prior)
             return self.eta * (data_term + regu) / 2
         else:
-            raise ValueError('to implement')
+            data_term = torch.nn.BCEWithLogitsLoss()(self.users @ theta, self.rewards)
+            regu = (theta - self.mean_prior).T @ self.cov_prior_inv @ (theta - self.mean_prior)
+            return self.eta * (data_term + regu) / 2
     
     def compute_gradient(self):
         self.theta.requires_grad = True
@@ -170,9 +176,10 @@ class Langevin(object):
             del gradient
 
 class MovieLens(object):
-    def __init__(self, dimension, regularisation, nb_iters, device):
+    def __init__(self, dimension, regularisation, nb_iters, device, is_linear):
         self.dimension = dimension
         self.device = device
+        self.is_linear = is_linear
         self.regularisation = regularisation
         self.nb_iters = nb_iters
         if os.path.exists(f'movielens_data_{dimension}.pkl'):
@@ -184,10 +191,20 @@ class MovieLens(object):
             pkl.dump((self.users, self.movies), open(f'movielens_data_{dimension}.pkl', 'wb'))
         self.users = torch.tensor(self.users, dtype=torch.float32).to(self.device)
         self.movies = torch.tensor(self.movies, dtype=torch.float32).to(self.device)
+    
+        #ratings = pd.read_csv("ratings.txt", sep='\t', header=None)
+        #ratings.columns = ['userid', 'movieid', 'rating', '']
+        #matrix = ratings.pivot(index='userid', columns='movieid', values='rating')
+        #matrix = 0.5 * (matrix - 3)
+        #matrix.fillna(0, inplace=True)
+        #users, S, V = scipy.sparse.linalg.svds(matrix.to_numpy(), self.dimension)
+        #movies = V.T
             
     def load(self):
         data = np.loadtxt("ratings.txt")
+        data[:, 2] = data[:, 2] - 3
         data = data[:, : 3].astype(int)
+        data[:, 1].astype(int)
         num_users = data[:, 0].max()
         num_movies = data[:, 1].max()
         data[:, : 2] -= 1
@@ -222,7 +239,10 @@ class MovieLens(object):
         rewards = self.movies @ user
         expected_reward = rewards[action]
         best_expected_reward = rewards.max()
-        reward = expected_reward + torch.normal(0, 1, size=(1,)).to(self.device)[0]
+        if self.is_linear:
+            reward = expected_reward + torch.normal(0, 1, size=(1,)).to(self.device)[0]
+        else:
+            reward = torch.bernoulli(1 / (1 + torch.exp(-expected_reward)))
         return reward, expected_reward, best_expected_reward
     
     def choose_movie(self, user, agents):
@@ -247,8 +267,8 @@ class MovieLens(object):
         self.movies = self.movies[np.random.choice(range(len(self.movies)), size=(100,)), :]
         mean_prior = torch.mean(self.movies, axis=0)
         cov_prior = torch.diag(torch.var(self.movies, axis=0))
-        agents = [Agent(self.dimension, mean_prior, cov_prior, self.device, *hyperparameters) for _ in range(len(self.movies))]
-        wandb.init(config=agents[0].get_config(), project='movielens_vits')
+        agents = [Agent(self.dimension, mean_prior, cov_prior, self.device, self.is_linear, *hyperparameters) for _ in range(len(self.movies))]
+        wandb.init(config=agents[0].get_config(), project='movielens_logistic_ts')
         cumulative_regret = torch.zeros((T,))
         for t in range(T):
             user = self.sample_user()
@@ -257,7 +277,7 @@ class MovieLens(object):
             agents[action].update(user, action, reward)
             cumulative_regret[t] = cumulative_regret[t-1] + best_expected_reward - expected_reward
             #cond = self.compute_condition(user, reward, hyperparameters[0], hyperparameters[1])
-            wandb.log({'cum_regret': cumulative_regret[t], "action": action})#, 'condition_number': cond})
+            wandb.log({'cum_regret': cumulative_regret[t], "action": action, "reward": reward})#, 'condition_number': cond})
         wandb.finish()
         return cumulative_regret
     
@@ -266,17 +286,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--seed')
 parser.add_argument('--algo')
 parser.add_argument('--lr')
+parser.add_argument('--logistic', default=False, action=argparse.BooleanOptionalAction)
 if __name__ == "__main__":
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f'[SYSTEM], device: {device}')
     dimension = 5
-    data = MovieLens(dimension, 1, 50, device)
-    eta_list = [100]
+    data = MovieLens(dimension, 1, 50, device, not(args.logistic))
+    eta_list = [50, 100, 200, 500]
     #lbd_list = [1]
 
     T = 5000
-
     if args.algo == 'ts':
         algo_name = 'TS'
         algo = ThompsonSampling
@@ -284,11 +304,11 @@ if __name__ == "__main__":
     elif args.algo == 'vits':
         algo_name = 'VITS'
         algo = VITS
-        hyperparameter = lambda eta : (eta, True, float(args.lr), 10, False, False, 1)
+        hyperparameter = lambda eta : (eta, float(args.lr), 10, False, False, 1)
     elif args.algo == 'lmcts':
         algo_name = 'LMC-TS'
         algo = Langevin
-        hyperparameter = lambda eta : (eta, True, float(args.lr), 100)
+        hyperparameter = lambda eta : (eta, float(args.lr), 100)
     else:
         raise ValueError(args.algo)
 
