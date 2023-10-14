@@ -54,9 +54,11 @@ class VITS(object):
         self.linear = is_linear
         self.h = h
         self.nb_updates = nb_updates
+        self.mean_prior = mean_prior
         self.mean = torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
-        self.cov_semi = torch.diag(torch.sqrt(torch.diag(torch.tensor(cov_prior, dtype=torch.float32)))).to(self.device)
-        self.cov_semi_inv = torch.diag(1/torch.sqrt(torch.diag(torch.tensor(cov_prior, dtype=torch.float32)))).to(self.device)
+        self.cov_prior_inv = torch.diag(1/(self.eta * torch.diag(cov_prior))).to(self.device)
+        self.cov_semi = torch.diag(torch.sqrt(torch.diag(cov_prior))).to(self.device)
+        self.cov_semi_inv = torch.diag(1/torch.sqrt(torch.diag(cov_prior))).to(self.device)
         
     def get_config(self):
         return {'eta': self.eta, 'dimension': self.dimension, 'h': self.h,
@@ -75,7 +77,6 @@ class VITS(object):
         if self.linear:
             data_term = torch.sum(torch.square(self.users @ theta - self.rewards))
             regu = (theta - self.mean_prior).T @ self.cov_prior_inv @ (theta - self.mean_prior)
-            raise ValueError('to check')
             return self.eta * (data_term + regu) / 2
             #return torch.sum(torch.square(self.users @ theta - self.rewards))
         else:
@@ -122,36 +123,22 @@ class Langevin(object):
         self.eta = eta
         self.device = device
         self.dimension = dimension
-        self.mean_prior = torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
-        self.cov_prior_inv = torch.diag(1/torch.diag(cov_prior))
+        self.mean_prior = mean_prior
+        self.cov_prior = cov_prior
+        self.cov_prior_inv = torch.diag(1/(self.eta * torch.diag(cov_prior))).to(self.device)
         self.users = torch.empty((0, dimension)).to(self.device)
         self.rewards = torch.empty((0,)).to(self.device)
         self.linear = is_linear
         self.h = h
         self.nb_updates = nb_updates
-        #self.theta = MultivariateNormal(torch.tensor(mean_prior, dtype=torch.float32), torch.eye(self.dimension)).sample().to(self.device)
-        #self.theta = torch.tensor(mean_prior, dtype=torch.float32).to(self.device)
-        self.theta = torch.tensor(mean_prior, dtype=torch.float32).to(self.device) + torch.normal(0, np.sqrt(self.eta * self.lbd), size=(self.dimension,)).to(self.device)
 
     def get_config(self):
         return {'eta': self.eta, 'dimension': self.dimension, 'h': self.h,
                 'nb_updates': self.nb_updates, 'algorithm': 'lmcts'}
 
     def reward(self, user):
-        #h = self.h / ((len(self.rewards) +1))
-        #for _ in range(50):
-        #    gradient = self.compute_gradient()
-        #    self.theta += - h * gradient + torch.normal(0, np.sqrt(2 * h), size=gradient.shape).to(self.device)
-        #    del gradient
-        #if len(self.rewards) == 0:
-        #    self.theta += torch.normal(0, np.sqrt(1 / (self.eta * self.lbd)), size=self.theta.shape).to(self.device)
-        #h = self.h / (1 + len(self.rewards))
-        #for _ in range(100):
-        #    gradient = self.compute_gradient()
-        #    self.theta += - h * gradient + torch.normal(0, np.sqrt(2 * h), size=gradient.shape).to(self.device)
-        #raise ValueError(self.theta - self.mean_prior)
         if len(self.rewards) == 0:
-            self.theta = torch.tensor(self.mean_prior, dtype=torch.float32).to(self.device) + torch.normal(0, np.sqrt(self.eta * self.lbd), size=(self.dimension,)).to(self.device)
+            self.theta = self.mean_prior + torch.diag(1/torch.sqrt(torch.diag(self.cov_prior))) @ torch.normal(0, 1, size=(self.dimension,)).to(self.device)
         else:
             h = self.h / (1 + len(self.rewards))
             for _ in range(10):
@@ -162,7 +149,7 @@ class Langevin(object):
     def potential(self, theta):
         if self.linear:
             data_term = torch.sum(torch.square(self.users @ theta - self.rewards))
-            regu =  (theta - self.mean_prior).T @ self.cov_prior_inv @ (theta - self.mean_prior)
+            regu = (theta - self.mean_prior).T @ self.cov_prior_inv @ (theta - self.mean_prior)
             return self.eta * (data_term + regu) / 2
         else:
             raise ValueError('to implement')
@@ -261,7 +248,7 @@ class MovieLens(object):
         mean_prior = torch.mean(self.movies, axis=0)
         cov_prior = torch.diag(torch.var(self.movies, axis=0))
         agents = [Agent(self.dimension, mean_prior, cov_prior, self.device, *hyperparameters) for _ in range(len(self.movies))]
-        wandb.init(config=agents[0].get_config(), project='movielens_ts')
+        wandb.init(config=agents[0].get_config(), project='movielens_vits')
         cumulative_regret = torch.zeros((T,))
         for t in range(T):
             user = self.sample_user()
@@ -285,7 +272,7 @@ if __name__ == "__main__":
     print(f'[SYSTEM], device: {device}')
     dimension = 5
     data = MovieLens(dimension, 1, 50, device)
-    eta_list = [1, 5, 10, 50, 100]
+    eta_list = [100]
     #lbd_list = [1]
 
     T = 5000
