@@ -79,7 +79,8 @@ class LogisticDataset(object):
 
     def reward_fct(self, idx, data_key, action):
         key, subkey = jax.random.split(data_key)
-        expected_reward = 1 / (1 + jnp.exp(-self.mean[idx, action]     ) )
+        jax.debug.print("here {}",self.mean[idx, action] )
+        expected_reward = 1 / (1 + jnp.exp(-  0.1*  self.mean[idx, action]     ) )
         reward = jnp.where(jax.random.bernoulli(subkey, p=expected_reward), 1, 0)
         best_expected_reward = 1 / (1 + jnp.exp(-jnp.max(self.mean[idx, :])))
         return key, reward, expected_reward, best_expected_reward
