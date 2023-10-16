@@ -15,17 +15,18 @@ nb_arms: 50
 context_noise: 1
 
 model:
-  layers: [1]
+  layers: [20,1]
   logistic_activation: false
 
 lmcts:
   num_updates: 50
-  step_size: 0.01
+  step_size: 0.001
 
 vits:
   hessian_free: false
-  approx: false
-  step_size: 0.01
+  approx: true
+  step_size_mean: 0.001
+  step_size_cov: 0.00001
   num_updates: 10
   mc_samples: 2
 
