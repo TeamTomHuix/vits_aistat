@@ -10,9 +10,11 @@ from agents.vts import VTS
 from agents.rvits import RVITS
 from agents.random import Random
 from utils.utils import UtilsVector
-from env import LinearDataset, LogisticDataset, YahooEnv, LinearIllDataset, LogisticIllDataset
+from env import LinearDataset, LogisticDataset, YahooEnv, LinearIllDataset, LogisticIllDataset, QuadraticDataset
 from tqdm import tqdm
 import pickle as pkl
+import matplotlib.pyplot as plt
+import numpy as np
 
 class Game(object):
     def __init__(self, info):
@@ -33,6 +35,7 @@ class Game(object):
             "logistic": LogisticDataset,
             "logisticill": LogisticIllDataset,
             "yahoo": YahooEnv,
+            "quadratic" :QuadraticDataset,
         }
         self.info = info
         self.theta_key = jax.random.PRNGKey(self.info.key.theta)
@@ -43,11 +46,13 @@ class Game(object):
 
     def run_toy(self):
         cum_regret = jnp.zeros(self.info.T)
+        means=[]
         for idx in range(self.info.T):
             context = self.context_fct(idx)
             self.agent_key, utils_vector, action = self.choice_fct(self.agent_key, context, self.utils_object.get())
             self.utils_object.set(utils_vector) 
             self.data_key, reward, expected_reward, best_expected_reward = self.reward_fct(idx, self.data_key, action)
+           
             self.agent_key, utils_vector = self.update_fct(self.agent_key, context, action, reward, self.utils_object.get(idx + 1))
             self.utils_object.set(utils_vector, idx + 1)
             cum_regret = cum_regret.at[idx + 1].set(cum_regret[idx] + best_expected_reward - expected_reward)
@@ -59,6 +64,8 @@ class Game(object):
                     "is_arm_1": 1 if action == 1 else 0,
                   #  "condition_number": jax.device_get(condition_number)
                    })
+            
+       
         wandb.finish()
         return cum_regret
 
