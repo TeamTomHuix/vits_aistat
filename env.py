@@ -94,7 +94,7 @@ class QuadraticDataset(object):
     def __init__(self, info, theta_key, data_key):
         self.info = info
         self.theta = self.init_theta_star(theta_key)
-        self.features, self.mean ,noise= self.generate_data(data_key)
+        self.features, self.mean ,self.noise= self.generate_data(data_key)
         
     def init_theta_star(self, theta_key):
         theta = jax.random.normal(theta_key, shape=(self.info.ctx_dim, 1)) / np.sqrt(self.info.ctx_dim) 
