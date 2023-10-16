@@ -116,7 +116,7 @@ class QuadraticDataset(object):
 
     def reward_fct(self, idx, data_key, action):
         key, subkey = jax.random.split(data_key)
-        jax.debug.print("here {}",self.mean[idx, action] )
+       # jax.debug.print("here {}",self.mean[idx, action] )
         expected_reward = self.mean[idx, action]**2    
         reward =  self.mean[idx, action]**2  + self.noise[idx]
         best_expected_reward = jnp.max(self.mean[idx, :]**2) 

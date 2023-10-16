@@ -8,8 +8,8 @@ import hydra
 from omegaconf import DictConfig
 
 jax.config.update("jax_debug_nans", True)
-jax.config.update("jax_disable_jit", True)
-#os.environ["WANDB_MODE"] = "offline"
+#jax.config.update("jax_disable_jit", True)
+os.environ["WANDB_MODE"] = "offline"
 
 @hydra.main(config_path="parameters", config_name="quadratic")
 def main(args: DictConfig):
