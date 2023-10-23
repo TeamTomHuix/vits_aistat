@@ -61,6 +61,8 @@ class VITS(object):
     def update_cov(self, cov_semi, cov_semi_inv, hessian, h):
         cov_semi = (jnp.eye(self.utils_object.dimension) - h * hessian) @ cov_semi + h * cov_semi_inv.T
         if self.info.vits.approx:
+           # jax.debug.print("cov semi inv shape {}", cov_semi_inv.shape)
+           # jax.debug.print("cov semi inv shape {}", jnp.eye(self.utils_object.dimension).shape)
             cov_semi_inv = cov_semi_inv @ (jnp.eye(self.utils_object.dimension) - h * (jnp.matmul(cov_semi_inv.T , cov_semi_inv) - hessian))
         else:
             cov_semi_inv = jnp.linalg.pinv(cov_semi)
@@ -98,13 +100,20 @@ class VITS(object):
         if self.info.vits.hessian_free:
             gradients, mc_approx = jax.vmap(lambda k: self.mc_approxiation_hessian_free(k, mean, features, labels, cov_semi, cov_semi_inv))(jax.random.split(subkey, self.info.vits.mc_samples))
             gradient = jnp.mean(gradients, axis=0)
-            hessian = self.info.eta * (cov_semi_inv.T @ jnp.mean(mc_approx, axis=0) + 2 * self.info.lbd * jnp.eye(self.info.ctx_dim))
+            hessian = self.info.eta * (cov_semi_inv.T @ jnp.mean(mc_approx, axis=0) + 2 * self.info.lbd * jnp.eye(cov_semi_inv.shape()))
         else:
             gradients, hessian = jax.vmap(lambda k: self.mc_approxiation_hessian(k, mean, features, labels, cov_semi, cov_semi_inv))(jax.random.split(subkey, self.info.vits.mc_samples))
+            
+            #jax.debug.print("hessian {}",jnp.linalg.norm(hessian,ord=2) )
             gradient = jnp.mean(gradients, axis=0)
             hessian = jnp.mean(hessian, axis=0)
+            #jax.debug.print("grad {}",gradient  )
+            #jax.debug.print("hess {}",hessian  )
         mean = self.update_mean(mean, gradient, self.info.vits.step_size_mean / (self.info.eta *features.shape[0]))
         cov_semi, cov_semi_inv = self.update_cov(cov_semi, cov_semi_inv, hessian, self.info.vits.step_size_cov /( self.info.eta*features.shape[0]))
+       # jax.debug.print("mean {}",mean  )
+        #jax.debug.print("cov {}",cov_semi  )
+        #jax.debug.print("inv cov {}",cov_semi_inv  )
         return (key, mean, cov_semi, cov_semi_inv)
 
     def update_fct(self, key, context, action, reward, utils_vector):
